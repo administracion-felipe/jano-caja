@@ -55,7 +55,7 @@ export default function Autorizaciones({ perfil }) {
                   <td className="num">{clp(r.monto)}</td>
                   <td><div className="jc-acts">
                     <button className="jc-btn sm danger" disabled={busy === 'r' + r.id} onClick={() => resolverRetiro(r.id, 'rechazado')}>Rechazar</button>
-                    <button className="jc-btn sm primary" disabled={busy === 'r' + r.id} onClick={() => resolverRetiro(r.id, 'autorizado')}>Autorizar</button>
+                    <button className="jc-btn sm ok" disabled={busy === 'r' + r.id} onClick={() => resolverRetiro(r.id, 'autorizado')}>Autorizar</button>
                   </div></td>
                 </tr>
               ))}

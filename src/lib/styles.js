@@ -57,6 +57,9 @@ export const CSS = `
 .jc-btn.primary:hover { background:var(--azul-700); }
 .jc-btn.sm { padding:8px 12px; font-size:13px; flex:0 0 auto; }
 .jc-btn.danger { color:var(--danger); border-color:#F2C9C6; }
+.jc-btn.danger:hover { background:#FBEAE9; }
+.jc-btn.ok { background:#0F9D58; border-color:#0F9D58; color:#fff; font-weight:600; }
+.jc-btn.ok:hover { background:#0B8043; }
 .jc-btn:disabled { opacity:.5; cursor:default; }
 .jc-acts { display:flex; gap:6px; justify-content:flex-end; }
 
@@ -86,7 +89,14 @@ export const CSS = `
 .jc-confhead .monto { font-size:18px; font-weight:700; letter-spacing:-0.01em; }
 .jc-cands { display:flex; flex-direction:column; gap:6px; margin:10px 0; }
 .jc-cands .lbl { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:2px; }
-.jc-cand { display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--azul-050); border-radius:8px; padding:8px 10px; }
+.jc-cand { display:flex; justify-content:space-between; align-items:center; gap:10px; background:#F7F9FC; border-radius:8px; padding:8px 10px; border-left:4px solid var(--border); }
+.jc-cand.santander { border-left-color:#EC0000; }
+.jc-cand.bancoestado { border-left-color:#F47B20; }
+.jc-cand.mercadopago { border-left-color:#00A6E0; }
+.jc-bank { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; color:#fff; white-space:nowrap; }
+.jc-bank.santander { background:#EC0000; }
+.jc-bank.bancoestado { background:#F47B20; }
+.jc-bank.mercadopago { background:#00A6E0; }
 .jc-cand .info { font-size:13px; line-height:1.35; }
 .jc-cand .info b { font-weight:600; }
 .jc-cand .info span { color:var(--muted); }

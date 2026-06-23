@@ -75,12 +75,14 @@ export default function Pagos({ perfil }) {
                     <div className="jc-cands">
                       <div className="lbl">Transferencias recibidas que calzan</div>
                       {candidatos.map((t) => (
-                        <div className="jc-cand" key={t.id}>
+                        <div className={`jc-cand ${t.banco}`} key={t.id}>
                           <div className="info">
-                            <b>{t.pagador || 'Sin nombre'}</b> · <span>{bancoLabel(t.banco)} · {t.fecha}</span>
+                            <b>{t.pagador || 'Sin nombre'}</b>{' '}
+                            <span className={`jc-bank ${t.banco}`}>{bancoLabel(t.banco)}</span>{' '}
+                            <span>{t.fecha}</span>
                             {t.comentario && <div><span>{t.comentario}</span></div>}
                           </div>
-                          <button className="jc-btn sm primary" disabled={bloqueado} onClick={() => resolverCobro(cobro, 'confirmado', t)}>Usar esta</button>
+                          <button className="jc-btn sm ok" disabled={bloqueado} onClick={() => resolverCobro(cobro, 'confirmado', t)}>Usar esta</button>
                         </div>
                       ))}
                     </div>
@@ -110,7 +112,7 @@ export default function Pagos({ perfil }) {
               {transfs.map((t) => (
                 <tr key={t.id}>
                   <td>{t.fecha}</td>
-                  <td>{bancoLabel(t.banco)}</td>
+                  <td><span className={`jc-bank ${t.banco}`}>{bancoLabel(t.banco)}</span></td>
                   <td>{t.pagador || '—'}</td>
                   <td>{t.comentario || '—'}</td>
                   <td className="num">{clp(t.monto)}</td>
