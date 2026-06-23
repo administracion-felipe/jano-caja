@@ -78,4 +78,17 @@ export const CSS = `
 .jc-msg.ok { color:var(--ok); } .jc-msg.error { color:var(--danger); }
 .jc-open { max-width:420px; margin:8vh auto 0; }
 .jc-hint { font-size:12px; color:var(--muted); margin-top:4px; }
+
+.jc-conflist { display:flex; flex-direction:column; gap:12px; }
+.jc-confcard { border:1px solid var(--border); border-radius:12px; padding:12px 14px; }
+.jc-confhead { display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
+.jc-confhead .who { font-size:14px; font-weight:600; }
+.jc-confhead .monto { font-size:18px; font-weight:700; letter-spacing:-0.01em; }
+.jc-cands { display:flex; flex-direction:column; gap:6px; margin:10px 0; }
+.jc-cands .lbl { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:2px; }
+.jc-cand { display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--azul-050); border-radius:8px; padding:8px 10px; }
+.jc-cand .info { font-size:13px; line-height:1.35; }
+.jc-cand .info b { font-weight:600; }
+.jc-cand .info span { color:var(--muted); }
+.jc-nomatch { font-size:12px; color:#A65A00; background:#FBF0DF; border-radius:8px; padding:8px 10px; margin:10px 0; }
 `;
