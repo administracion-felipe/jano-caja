@@ -46,10 +46,9 @@ export default function App() {
     return <Aviso titulo="Sin perfil asignado"
       texto="Tu usuario aún no tiene un perfil activo. Avisa al administrador." onSalir={salir} />;
   }
-  if (!perfil.puede_operar_caja) {
+  if (!perfil.puede_operar_caja && !perfil.puede_autorizar) {
     return <Aviso titulo={`Hola, ${perfil.nombre}`}
-      texto="Tu perfil es de autorización. Esas funciones (confirmar transferencias y autorizar retiros) se habilitarán en el próximo paso."
-      onSalir={salir} />;
+      texto="Tu usuario no tiene permisos de caja ni de autorización asignados." onSalir={salir} />;
   }
   return <Shell perfil={perfil} onSalir={salir} />;
 }
