@@ -1,0 +1,2 @@
+# jano-caja
+APP PARA CONTROL DE CAJA 
