@@ -13,16 +13,22 @@ const MEDIOS = [
   { id: 'efectivo', label: 'Efectivo' },
   { id: 'tarjeta', label: 'Tarjeta' },
   { id: 'transferencia', label: 'Transferencia' },
+  { id: 'webpay', label: 'Webpay' },
   { id: 'credito_cta_cte', label: 'Crédito' },
 ];
 const medioLabel = (id) => MEDIOS.find((m) => m.id === id)?.label ?? id;
+const REQUIERE_CONFIRMACION = ['transferencia', 'webpay'];
+
+const EST_RET = { pendiente: { t: 'Pendiente', c: 'warn' }, autorizado: { t: 'Autorizado', c: 'ok' }, rechazado: { t: 'Rechazado', c: 'bad' } };
 
 export default function CobroCaja({ perfil }) {
   const [sesion, setSesion] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [cobros, setCobros] = useState([]);
+  const [retiros, setRetiros] = useState([]);
 
   const [fondo, setFondo] = useState('800000');
+  const [fondoNota, setFondoNota] = useState(null);
 
   const [scan, setScan] = useState('');
   const [doc, setDoc] = useState(null);
@@ -34,6 +40,13 @@ export default function CobroCaja({ perfil }) {
   const [cerrando, setCerrando] = useState(false);
   const [arqueo, setArqueo] = useState('');
 
+  const [pidiendo, setPidiendo] = useState(false);
+  const [montoRet, setMontoRet] = useState('');
+  const [motivoRet, setMotivoRet] = useState('retiro');
+  const [descRet, setDescRet] = useState('');
+  const [ocupadoRet, setOcupadoRet] = useState(false);
+  const [msgRet, setMsgRet] = useState(null);
+
   const scanRef = useRef(null);
 
   useEffect(() => { cargarSesion(); }, []);
@@ -44,6 +57,7 @@ export default function CobroCaja({ perfil }) {
     const { data } = await supabase.from('caja_sesiones').select('*')
       .eq('estado', 'abierta').order('abierta_en', { ascending: false }).limit(1).maybeSingle();
     setSesion(data ?? null);
+
     if (data) {
       const { data: cs } = await supabase.from('cobros').select('*')
         .eq('sesion_id', data.id).order('creado_en', { ascending: false });
@@ -54,15 +68,34 @@ export default function CobroCaja({ perfil }) {
         const d = map[`${c.tipo_dte}-${c.folio}`] || {};
         return { ...c, cliente: d.razon_receptor || null, descripcion: d.primer_item || null };
       }));
+      const { data: rs } = await supabase.from('retiros').select('*')
+        .eq('sesion_id', data.id).order('creado_en', { ascending: false });
+      setRetiros(rs || []);
+    } else {
+      await sugerirFondo();
     }
     setCargando(false);
+  }
+
+  async function sugerirFondo() {
+    const { data: ult } = await supabase.from('caja_sesiones').select('*')
+      .eq('estado', 'cerrada').order('cerrada_en', { ascending: false }).limit(1).maybeSingle();
+    if (!ult) { setFondo('800000'); setFondoNota(null); return; }
+    const { data: rs } = await supabase.from('retiros').select('monto,estado')
+      .eq('sesion_id', ult.id).eq('estado', 'autorizado');
+    const usado = (rs || []).reduce((s, x) => s + x.monto, 0);
+    const saldo = Math.max(0, (ult.fondo_inicial || 0) - usado);
+    setFondo(String(saldo));
+    setFondoNota(usado > 0
+      ? `Saldo traspasado del cierre anterior: ${clp(ult.fondo_inicial)} − ${clp(usado)} en retiros. Ajusta si repusiste el fondo.`
+      : 'Saldo traspasado del cierre anterior. Ajusta si repusiste el fondo.');
   }
 
   async function abrirCaja() {
     const { data, error } = await supabase.from('caja_sesiones')
       .insert({ cajero: perfil.nombre, fondo_inicial: Number(fondo) || 0 }).select().single();
     if (error) return setMsg({ tipo: 'error', txt: error.message });
-    setSesion(data); setCobros([]); setMsg(null);
+    setSesion(data); setCobros([]); setRetiros([]); setMsg(null);
   }
 
   function leerTimbre() {
@@ -77,6 +110,7 @@ export default function CobroCaja({ perfil }) {
     if (!doc || !medio) return;
     setOcupado(true);
     const vuelto = medio === 'efectivo' ? Math.max(0, (Number(recibido) || 0) - doc.total) : 0;
+    const estadoPago = REQUIERE_CONFIRMACION.includes(medio) ? 'por_confirmar' : 'confirmado';
     await supabase.from('documentos').upsert({
       tipo_dte: doc.tipoDte, folio: doc.folio, total: doc.total,
       rut_receptor: doc.rutReceptor, razon_receptor: doc.razonReceptor,
@@ -85,13 +119,28 @@ export default function CobroCaja({ perfil }) {
     }, { onConflict: 'tipo_dte,folio' });
     const { data, error } = await supabase.from('cobros').insert({
       sesion_id: sesion.id, tipo_dte: doc.tipoDte, folio: doc.folio,
-      monto: doc.total, medio_pago: medio, vuelto, cajero: perfil.nombre,
+      monto: doc.total, medio_pago: medio, vuelto, cajero: perfil.nombre, estado_pago: estadoPago,
     }).select().single();
     setOcupado(false);
     if (error) return setMsg({ tipo: 'error', txt: error.message });
     setCobros((prev) => [{ ...data, cliente: doc.razonReceptor, descripcion: doc.primerItem }, ...prev]);
     setDoc(null); setMedio(null); setRecibido('');
-    setMsg({ tipo: 'ok', txt: `Cobro registrado · folio ${doc.folio}${vuelto ? ` · vuelto ${clp(vuelto)}` : ''}` });
+    const aviso = estadoPago === 'por_confirmar' ? ' · queda por confirmar' : '';
+    setMsg({ tipo: 'ok', txt: `Cobro registrado · folio ${doc.folio}${vuelto ? ` · vuelto ${clp(vuelto)}` : ''}${aviso}` });
+  }
+
+  async function solicitarRetiro() {
+    const m = Number(montoRet) || 0;
+    if (m <= 0) return setMsgRet({ tipo: 'error', txt: 'Ingresa un monto válido.' });
+    setOcupadoRet(true);
+    const { data, error } = await supabase.from('retiros').insert({
+      sesion_id: sesion.id, monto: m, motivo: motivoRet, descripcion: descRet || null, solicitado_por: perfil.nombre,
+    }).select().single();
+    setOcupadoRet(false);
+    if (error) return setMsgRet({ tipo: 'error', txt: error.message });
+    setRetiros((prev) => [data, ...prev]);
+    setMontoRet(''); setDescRet(''); setMotivoRet('retiro'); setPidiendo(false);
+    setMsgRet({ tipo: 'ok', txt: 'Solicitud enviada a autorización.' });
   }
 
   const tot = MEDIOS.reduce((a, m) => {
@@ -99,7 +148,9 @@ export default function CobroCaja({ perfil }) {
     return a;
   }, {});
   const totalDia = cobros.reduce((s, c) => s + c.monto, 0);
-  const efectivoEsperado = (sesion?.fondo_inicial || 0) + (tot.efectivo || 0);
+  const retirosAutorizados = retiros.filter((r) => r.estado === 'autorizado').reduce((s, r) => s + r.monto, 0);
+  const retirosPendientes = retiros.filter((r) => r.estado === 'pendiente').length;
+  const efectivoEsperado = (sesion?.fondo_inicial || 0) + (tot.efectivo || 0) - retirosAutorizados;
 
   async function cerrarCaja() {
     const arq = Number(arqueo) || 0;
@@ -109,7 +160,8 @@ export default function CobroCaja({ perfil }) {
       arqueo_efectivo: arq, diferencia: arq - efectivoEsperado, estado: 'cerrada',
     }).eq('id', sesion.id);
     if (error) return setMsg({ tipo: 'error', txt: error.message });
-    setSesion(null); setCobros([]); setCerrando(false); setArqueo(''); setFondo('800000');
+    setSesion(null); setCobros([]); setRetiros([]); setCerrando(false); setArqueo('');
+    await sugerirFondo();
   }
 
   if (cargando) return <p className="jc-cajero">Cargando…</p>;
@@ -121,6 +173,7 @@ export default function CobroCaja({ perfil }) {
         <p className="jc-cajero">Cajero: <b>{perfil.nombre}</b></p>
         <label className="jc-lbl">Fondo inicial</label>
         <input className="jc-input" type="number" value={fondo} onChange={(e) => setFondo(e.target.value)} placeholder="800000" />
+        {fondoNota && <p className="jc-hint">{fondoNota}</p>}
         {msg && <p className={`jc-msg ${msg.tipo}`}>{msg.txt}</p>}
         <div className="jc-row"><button className="jc-btn primary" onClick={abrirCaja}>Abrir caja</button></div>
       </div>
@@ -140,15 +193,19 @@ export default function CobroCaja({ perfil }) {
         <div className="jc-card"><div className="lbl">Efectivo</div><div className="val">{clp(tot.efectivo)}</div></div>
         <div className="jc-card"><div className="lbl">Tarjeta</div><div className="val">{clp(tot.tarjeta)}</div></div>
         <div className="jc-card"><div className="lbl">Transferencia</div><div className="val">{clp(tot.transferencia)}</div></div>
+        <div className="jc-card"><div className="lbl">Webpay</div><div className="val">{clp(tot.webpay)}</div></div>
         <div className="jc-card"><div className="lbl">Crédito</div><div className="val">{clp(tot.credito_cta_cte)}</div></div>
+        <div className="jc-card"><div className="lbl">Retiros aut.</div><div className="val">{clp(retirosAutorizados)}</div></div>
       </div>
 
       {cerrando && (
         <div className="jc-panel" style={{ marginBottom: 16 }}>
           <h2>Cierre de caja</h2>
-          <p className="jc-cajero">Efectivo esperado en cajón: <b>{clp(efectivoEsperado)}</b> (fondo {clp(sesion.fondo_inicial)} + efectivo del día)</p>
+          <p className="jc-cajero">Efectivo esperado en cajón: <b>{clp(efectivoEsperado)}</b></p>
+          <p className="jc-hint">Fondo {clp(sesion.fondo_inicial)} + efectivo del día {clp(tot.efectivo)} − retiros autorizados {clp(retirosAutorizados)}</p>
           <label className="jc-lbl">Efectivo contado (arqueo)</label>
           <input className="jc-input" type="number" value={arqueo} onChange={(e) => setArqueo(e.target.value)} placeholder="0" />
+          {arqueo !== '' && <p className="jc-hint">Diferencia: {clp((Number(arqueo) || 0) - efectivoEsperado)}</p>}
           <div className="jc-row">
             <button className="jc-btn" onClick={() => setCerrando(false)}>Cancelar</button>
             <button className="jc-btn primary" onClick={cerrarCaja}>Confirmar cierre</button>
@@ -186,6 +243,7 @@ export default function CobroCaja({ perfil }) {
                   <div className="jc-vuelto">Vuelto: {clp(Math.max(0, (Number(recibido) || 0) - doc.total))}</div>
                 </div>
               )}
+              {REQUIERE_CONFIRMACION.includes(medio) && <p className="jc-hint">Este pago quedará "por confirmar" hasta que un autorizador lo valide.</p>}
               <div className="jc-row">
                 <button className="jc-btn" onClick={() => { setDoc(null); setMedio(null); }}>Cancelar</button>
                 <button className="jc-btn primary" disabled={!medio || ocupado} onClick={confirmarCobro}>
@@ -211,7 +269,11 @@ export default function CobroCaja({ perfil }) {
                     <td>{hora(c.creado_en)}</td>
                     <td>{c.folio}</td>
                     <td>{c.cliente || '—'}{c.descripcion && <span className="jc-sub">{c.descripcion}</span>}</td>
-                    <td><span className="jc-tag">{medioLabel(c.medio_pago)}</span></td>
+                    <td>
+                      <span className="jc-tag">{medioLabel(c.medio_pago)}</span>
+                      {c.estado_pago === 'por_confirmar' && <span className="jc-st warn" style={{ marginLeft: 4 }}>por confirmar</span>}
+                      {c.estado_pago === 'rechazado' && <span className="jc-st bad" style={{ marginLeft: 4 }}>rechazado</span>}
+                    </td>
                     <td className="num">{clp(c.monto)}</td>
                   </tr>
                 ))}
@@ -219,6 +281,58 @@ export default function CobroCaja({ perfil }) {
             </table>
           )}
         </div>
+      </div>
+
+      <div className="jc-panel" style={{ marginTop: 16 }}>
+        <div className="jc-substrip">
+          <h2>Retiros y devoluciones</h2>
+          <button className="jc-btn sm" onClick={() => { setPidiendo(!pidiendo); setMsgRet(null); }}>
+            {pidiendo ? 'Cancelar' : 'Solicitar retiro'}
+          </button>
+        </div>
+
+        {pidiendo && (
+          <div style={{ marginBottom: 14 }}>
+            <label className="jc-lbl">Tipo</label>
+            <select className="jc-select" value={motivoRet} onChange={(e) => setMotivoRet(e.target.value)}>
+              <option value="retiro">Retiro de efectivo</option>
+              <option value="devolucion">Devolución a cliente</option>
+            </select>
+            <label className="jc-lbl">Monto</label>
+            <input className="jc-input" type="number" value={montoRet} onChange={(e) => setMontoRet(e.target.value)} placeholder="0" />
+            <label className="jc-lbl">Detalle (opcional)</label>
+            <input className="jc-input" value={descRet} onChange={(e) => setDescRet(e.target.value)} placeholder="Motivo o referencia…" />
+            <div className="jc-row">
+              <button className="jc-btn primary" disabled={ocupadoRet} onClick={solicitarRetiro}>
+                {ocupadoRet ? 'Enviando…' : 'Enviar a autorización'}
+              </button>
+            </div>
+          </div>
+        )}
+        {msgRet && <p className={`jc-msg ${msgRet.tipo}`}>{msgRet.txt}</p>}
+
+        {retiros.length === 0 ? (
+          <div className="jc-empty">No hay retiros en este turno.</div>
+        ) : (
+          <table className="jc-table">
+            <thead><tr><th>Hora</th><th>Tipo</th><th>Detalle</th><th className="num">Monto</th><th>Estado</th></tr></thead>
+            <tbody>
+              {retiros.map((r) => {
+                const e = EST_RET[r.estado] || { t: r.estado, c: '' };
+                return (
+                  <tr key={r.id}>
+                    <td>{hora(r.creado_en)}</td>
+                    <td>{r.motivo === 'devolucion' ? 'Devolución' : 'Retiro'}</td>
+                    <td>{r.descripcion || '—'}</td>
+                    <td className="num">{clp(r.monto)}</td>
+                    <td><span className={`jc-st ${e.c}`}>{e.t}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+        {retirosPendientes > 0 && <p className="jc-hint">{retirosPendientes} solicitud(es) esperando autorización.</p>}
       </div>
     </>
   );
