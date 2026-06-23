@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 import Login from './components/Login';
-import CobroCaja from './components/CobroCaja';
+import Shell from './components/Shell';
 import logo from './lib/logo';
 
 const wrap = { minHeight: '100vh', background: '#F4F6FB', fontFamily: "system-ui,-apple-system,'Segoe UI',Roboto,sans-serif", color: '#0B1220', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 };
@@ -51,5 +51,5 @@ export default function App() {
       texto="Tu perfil es de autorización. Esas funciones (confirmar transferencias y autorizar retiros) se habilitarán en el próximo paso."
       onSalir={salir} />;
   }
-  return <CobroCaja perfil={perfil} onSalir={salir} />;
+  return <Shell perfil={perfil} onSalir={salir} />;
 }
