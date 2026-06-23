@@ -4,11 +4,13 @@ import { CSS } from '../lib/styles';
 import logo from '../lib/logo';
 import CobroCaja from './CobroCaja';
 import Conciliacion from './Conciliacion';
+import Pagos from './Pagos';
 import Autorizaciones from './Autorizaciones';
 
 export default function Shell({ perfil, onSalir }) {
   const tabs = [];
   if (perfil.puede_operar_caja) { tabs.push({ id: 'caja', label: 'Caja' }); tabs.push({ id: 'conc', label: 'Conciliación' }); }
+  if (perfil.puede_operar_caja || perfil.puede_autorizar) tabs.push({ id: 'pagos', label: 'Pagos' });
   if (perfil.puede_autorizar) tabs.push({ id: 'autoriz', label: 'Autorizaciones' });
   const [tab, setTab] = useState(tabs[0]?.id);
 
@@ -33,6 +35,7 @@ export default function Shell({ perfil, onSalir }) {
         </div>
         {tab === 'caja' && <CobroCaja perfil={perfil} />}
         {tab === 'conc' && <Conciliacion />}
+        {tab === 'pagos' && <Pagos perfil={perfil} />}
         {tab === 'autoriz' && <Autorizaciones perfil={perfil} />}
       </div>
     </div>
