@@ -202,6 +202,9 @@ export default function CobroCaja({ perfil }) {
     }).select().single();
     setOcupadoRet(false);
     if (error) return setMsgRet({ tipo: 'error', txt: error.message });
+    await supabase.from('retiros_historial').insert({
+      retiro_id: data.id, accion: 'solicitado', monto: m, detalle: motivoRet, usuario: perfil.nombre, usuario_id: perfil.id,
+    });
     setRetiros((prev) => [data, ...prev]);
     setMontoRet(''); setDescRet(''); setNotaRet(''); setMotivoRet(tiposRet[0]?.nombre || ''); setPidiendo(false);
     setMsgRet({ tipo: 'ok', txt: 'Solicitud enviada a autorización.' });
