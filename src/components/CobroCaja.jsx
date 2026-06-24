@@ -41,6 +41,14 @@ function Ic({ name, bg, fg }) {
   );
 }
 
+function diasHabilesMes(d = new Date()) {
+  const y = d.getFullYear(), m = d.getMonth();
+  const ult = new Date(y, m + 1, 0).getDate();
+  let n = 0;
+  for (let dia = 1; dia <= ult; dia++) { const wd = new Date(y, m, dia).getDay(); if (wd >= 1 && wd <= 5) n++; }
+  return n;
+}
+
 export default function CobroCaja({ perfil }) {
   const [sesion, setSesion] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -65,7 +73,8 @@ export default function CobroCaja({ perfil }) {
   const [arqueo, setArqueo] = useState('');
   const [editandoDoc, setEditandoDoc] = useState(null);
   const [ayerTotal, setAyerTotal] = useState(0);
-  const [meta, setMeta] = useState(0);
+  const [metaMensual, setMetaMensual] = useState(0);
+  const [mtdTotal, setMtdTotal] = useState(0);
   const [editandoMeta, setEditandoMeta] = useState(false);
   const [metaInput, setMetaInput] = useState('');
 
@@ -123,14 +132,23 @@ export default function CobroCaja({ perfil }) {
       total = (cs || []).reduce((a, c) => a + c.monto, 0);
     }
     setAyerTotal(total);
-    const { data: cfg } = await supabase.from('configuracion').select('valor').eq('clave', 'meta_diaria').maybeSingle();
-    setMeta(Number(cfg?.valor) || 0);
+    const { data: cfg } = await supabase.from('configuracion').select('valor').eq('clave', 'meta_mensual').maybeSingle();
+    setMetaMensual(Number(cfg?.valor) || 0);
+    const now = new Date();
+    const iniMes = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+    const { data: ms } = await supabase.from('caja_sesiones').select('id').gte('abierta_en', iniMes.toISOString());
+    let mtd = 0;
+    if (ms && ms.length) {
+      const { data: mc } = await supabase.from('cobros').select('monto').in('sesion_id', ms.map((s) => s.id));
+      mtd = (mc || []).reduce((a, c) => a + c.monto, 0);
+    }
+    setMtdTotal(mtd);
   }
 
   async function guardarMeta() {
     const v = Number(metaInput) || 0;
-    await supabase.from('configuracion').upsert({ clave: 'meta_diaria', valor: String(v), actualizado_en: new Date().toISOString() }, { onConflict: 'clave' });
-    setMeta(v); setEditandoMeta(false);
+    await supabase.from('configuracion').upsert({ clave: 'meta_mensual', valor: String(v), actualizado_en: new Date().toISOString() }, { onConflict: 'clave' });
+    setMetaMensual(v); setEditandoMeta(false);
   }
 
   async function cargarSaldos() {
@@ -278,8 +296,11 @@ export default function CobroCaja({ perfil }) {
   const boletas = docsDia.filter((d) => [39, 41].includes(d.tipo_dte)).length;
   const facturas = docsDia.filter((d) => [33, 34].includes(d.tipo_dte)).length;
   const trend = ayerTotal > 0 ? Math.round(((totalDia - ayerTotal) / ayerTotal) * 100) : null;
-  const metaPct = meta > 0 ? Math.min(100, (totalDia / meta) * 100) : 0;
-  const falta = Math.max(0, meta - totalDia);
+  const diasHab = diasHabilesMes();
+  const metaDiaria = metaMensual > 0 && diasHab > 0 ? Math.round(metaMensual / diasHab) : 0;
+  const diaPct = metaDiaria > 0 ? Math.min(100, (totalDia / metaDiaria) * 100) : 0;
+  const mesPct = metaMensual > 0 ? Math.min(100, (mtdTotal / metaMensual) * 100) : 0;
+  const faltaDia = Math.max(0, metaDiaria - totalDia);
   const segs = [
     { label: 'Efectivo', val: tot.efectivo, color: '#0F9D58' },
     { label: 'Tarjeta', val: tot.tarjeta, color: '#E0A106' },
@@ -377,33 +398,40 @@ export default function CobroCaja({ perfil }) {
       <div className="jc-two">
         <div className="jc-panel">
           <div className="jc-substrip" style={{ marginBottom: 12 }}>
-            <h2>Meta diaria</h2>
-            {perfil.puede_autorizar && !editandoMeta && <button className="jc-btn sm" onClick={() => { setMetaInput(String(meta)); setEditandoMeta(true); }}>Ajustar</button>}
+            <h2>Metas</h2>
+            {perfil.puede_autorizar && !editandoMeta && <button className="jc-btn sm" onClick={() => { setMetaInput(String(metaMensual)); setEditandoMeta(true); }}>Ajustar meta mensual</button>}
           </div>
           {editandoMeta ? (
             <div>
-              <label className="jc-lbl">Meta de ventas diaria</label>
+              <label className="jc-lbl">Meta mensual de ventas</label>
               <input className="jc-input" type="number" value={metaInput} onChange={(e) => setMetaInput(e.target.value)} />
+              <p className="jc-hint">Se divide por los {diasHab} días hábiles del mes para la meta diaria.</p>
               <div className="jc-row">
                 <button className="jc-btn" onClick={() => setEditandoMeta(false)}>Cancelar</button>
                 <button className="jc-btn primary" onClick={guardarMeta}>Guardar meta</button>
               </div>
             </div>
           ) : (
-            <>
-              <div className="jc-meta">
-                <div>
-                  <div className="lbl">Ventas hoy</div>
-                  <div className="big">{clp(totalDia)}</div>
-                  <div className="sub">Meta diaria: {clp(meta)}</div>
-                  <div className="sub">{meta <= 0 ? 'Define una meta para ver el avance.' : falta > 0 ? `Faltan ${clp(falta)} para la meta` : 'Meta alcanzada'}</div>
+            <div className="jc-metas">
+              <div className="jc-metabox">
+                <div className="jc-ring sm" style={{ background: `conic-gradient(var(--azul) ${diaPct * 3.6}deg, #E6ECF5 0deg)` }}>
+                  <div className="hole">{Math.round(diaPct)}%</div>
                 </div>
-                <div className="jc-ring" style={{ background: `conic-gradient(var(--azul) ${metaPct * 3.6}deg, #E6ECF5 0deg)` }}>
-                  <div className="hole">{Math.round(metaPct)}%</div>
-                </div>
+                <div className="lbl">Meta diaria</div>
+                <div className="big">{clp(totalDia)}</div>
+                <div className="sub">de {clp(metaDiaria)}</div>
+                <div className="sub">{metaDiaria <= 0 ? 'Define la meta mensual' : faltaDia > 0 ? `Faltan ${clp(faltaDia)}` : 'Lograda hoy'}</div>
               </div>
-              <div className="jc-progress"><div style={{ width: `${metaPct}%` }} /></div>
-            </>
+              <div className="jc-metabox">
+                <div className="jc-ring sm" style={{ background: `conic-gradient(#0F9D58 ${mesPct * 3.6}deg, #E6ECF5 0deg)` }}>
+                  <div className="hole">{Math.round(mesPct)}%</div>
+                </div>
+                <div className="lbl">Meta mensual</div>
+                <div className="big">{clp(mtdTotal)}</div>
+                <div className="sub">de {clp(metaMensual)}</div>
+                <div className="sub">{diasHab} días hábiles</div>
+              </div>
+            </div>
           )}
         </div>
 

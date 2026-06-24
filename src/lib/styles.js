@@ -132,6 +132,13 @@ export const CSS = `
 @media (max-width:880px){ .jc-two{ grid-template-columns:1fr; } }
 
 .jc-meta { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.jc-metas { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.jc-metabox { display:flex; flex-direction:column; align-items:center; text-align:center; gap:5px; }
+.jc-metabox .lbl { font-size:12px; color:var(--muted); font-weight:600; margin-top:3px; }
+.jc-metabox .big { font-size:18px; font-weight:800; letter-spacing:-.02em; }
+.jc-metabox .sub { font-size:11.5px; color:var(--muted); }
+.jc-ring.sm { width:96px; height:96px; }
+.jc-ring.sm .hole { width:68px; height:68px; font-size:17px; }
 .jc-meta .lbl { font-size:12px; color:var(--muted); }
 .jc-meta .big { font-size:26px; font-weight:800; letter-spacing:-.02em; margin:2px 0 6px; }
 .jc-meta .sub { font-size:12px; color:var(--muted); margin-top:2px; }
