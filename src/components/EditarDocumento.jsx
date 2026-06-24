@@ -22,6 +22,7 @@ export default function EditarDocumento({ grupo, onClose, onSaved }) {
   const [aMonto, setAMonto] = useState('');
   const [docTotal, setDocTotal] = useState(grupo.total);
   const [confirmar, setConfirmar] = useState(false);
+  const [confirmarDel, setConfirmarDel] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -46,6 +47,7 @@ export default function EditarDocumento({ grupo, onClose, onSaved }) {
     try {
       const aEliminar = lineas.filter((l) => l.id && l._del).map((l) => l.id);
       if (aEliminar.length) {
+        await supabase.from('transferencias_recibidas').update({ cobro_id: null, estado: 'disponible' }).in('cobro_id', aEliminar);
         const { error } = await supabase.from('cobros').delete().in('id', aEliminar);
         if (error) throw error;
       }
@@ -69,6 +71,21 @@ export default function EditarDocumento({ grupo, onClose, onSaved }) {
       }
       setBusy(false); setConfirmar(false); onSaved();
     } catch (e) { setBusy(false); setConfirmar(false); setError(e.message); }
+  }
+
+  async function eliminarDocumento() {
+    setBusy(true); setError(null);
+    try {
+      const ids = grupo.lineas.map((l) => l.id).filter(Boolean);
+      if (ids.length) {
+        await supabase.from('transferencias_recibidas').update({ cobro_id: null, estado: 'disponible' }).in('cobro_id', ids);
+        const { error } = await supabase.from('cobros').delete().in('id', ids);
+        if (error) throw error;
+      }
+      const { error: e2 } = await supabase.from('documentos').delete().eq('tipo_dte', grupo.tipo_dte).eq('folio', grupo.folio);
+      if (e2) throw e2;
+      setBusy(false); setConfirmarDel(false); onSaved();
+    } catch (e) { setBusy(false); setConfirmarDel(false); setError(e.message); }
   }
 
   const rowStyle = { display: 'flex', gap: 8, alignItems: 'center', background: 'var(--azul-050)', borderRadius: 8, padding: '8px 10px' };
@@ -121,6 +138,11 @@ export default function EditarDocumento({ grupo, onClose, onSaved }) {
           <button className="jc-btn primary" onClick={() => setConfirmar(true)}>Guardar cambios</button>
         </div>
 
+        <div style={{ borderTop: '1px solid var(--border)', marginTop: 14, paddingTop: 12 }}>
+          <button className="jc-btn danger" style={{ width: '100%' }} onClick={() => setConfirmarDel(true)}>Eliminar documento completo</button>
+          <p className="jc-hint" style={{ marginTop: 6 }}>Para folios ingresados por error (ej. de otro día). Borra todas sus formas de pago y el documento.</p>
+        </div>
+
         {confirmar && (
           <Confirm
             titulo="Confirmar cambios"
@@ -128,6 +150,16 @@ export default function EditarDocumento({ grupo, onClose, onSaved }) {
             busy={busy}
             onCancel={() => setConfirmar(false)}
             onConfirm={guardar}
+          />
+        )}
+
+        {confirmarDel && (
+          <Confirm
+            titulo="Eliminar documento"
+            mensaje={`Vas a eliminar por completo el folio ${grupo.folio} y todas sus formas de pago. Esta acción no se puede deshacer.`}
+            busy={busy}
+            onCancel={() => setConfirmarDel(false)}
+            onConfirm={eliminarDocumento}
           />
         )}
       </div>
