@@ -530,11 +530,19 @@ export default function CobroCaja({ perfil }) {
           <h2>Nuevo cobro</h2>
           {!doc ? (
             <>
-              <label className="jc-lbl">Escanea el timbre (PDF417) y presiona Enter</label>
-              <input ref={scanRef} className="jc-input" value={scan} autoFocus
-                onChange={(e) => setScan(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && leerTimbre()}
-                placeholder="Escaneo del timbre…" />
+              <div className="jc-scan">
+                <div className="jc-scan-ic">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 7V5a2 2 0 012-2h2 M17 3h2a2 2 0 012 2v2 M21 17v2a2 2 0 01-2 2h-2 M7 21H5a2 2 0 01-2-2v-2 M3 12h18" />
+                  </svg>
+                </div>
+                <div className="jc-scan-title">Escanee el timbre PDF417</div>
+                <div className="jc-scan-sub">Esperando lectura…</div>
+                <input ref={scanRef} className="jc-scan-input" value={scan} autoFocus
+                  onChange={(e) => setScan(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && leerTimbre()}
+                  placeholder="Apunta el lector al código y presiona Enter" />
+              </div>
               {msg && <p className={`jc-msg ${msg.tipo}`}>{msg.txt}</p>}
             </>
           ) : doc.tipoDte === 61 ? (
