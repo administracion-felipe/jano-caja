@@ -333,7 +333,9 @@ export default function CobroCaja({ perfil }) {
   const totalDia = cobros.reduce((s, c) => s + c.monto, 0);
   const retirosAutorizados = retiros.filter((r) => r.estado === 'autorizado').reduce((s, r) => s + r.monto, 0);
   const retirosPendientes = retiros.filter((r) => r.estado === 'pendiente').length;
-  const efectivoEsperado = (sesion?.fondo_inicial || 0) + (tot.efectivo || 0) - retirosAutorizados;
+  // Efectivo que realmente entró al cajón: ventas en efectivo reales (excluye notas de crédito y saldos a favor usados)
+  const efectivoCajon = cobros.filter((c) => c.medio_pago === 'efectivo' && c.monto > 0 && !c.saldo_id).reduce((s, c) => s + c.monto, 0);
+  const efectivoEsperado = (sesion?.fondo_inicial || 0) + efectivoCajon - retirosAutorizados;
 
   // Agrupar los cobros del día por documento (folio)
   const grupos = {};
@@ -511,7 +513,8 @@ export default function CobroCaja({ perfil }) {
         <div className="jc-panel" style={{ marginBottom: 16 }}>
           <h2>Cierre de caja</h2>
           <p className="jc-cajero">Efectivo esperado en cajón: <b>{clp(efectivoEsperado)}</b></p>
-          <p className="jc-hint">Fondo {clp(sesion.fondo_inicial)} + efectivo del día {clp(tot.efectivo)} − retiros autorizados {clp(retirosAutorizados)}</p>
+          <p className="jc-hint">Fondo {clp(sesion.fondo_inicial)} + efectivo en caja {clp(efectivoCajon)} − retiros autorizados {clp(retirosAutorizados)}</p>
+          <p className="jc-hint">No incluye notas de crédito ni saldos a favor: esa plata queda en la caja.</p>
           <label className="jc-lbl">Efectivo contado (arqueo)</label>
           <input className="jc-input" type="number" value={arqueo} onChange={(e) => setArqueo(e.target.value)} placeholder="0" />
           {arqueo !== '' && <p className="jc-hint">Diferencia: {clp((Number(arqueo) || 0) - efectivoEsperado)}</p>}
