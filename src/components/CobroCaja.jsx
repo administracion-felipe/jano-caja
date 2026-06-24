@@ -23,6 +23,24 @@ const REQUIERE_CONFIRMACION = ['transferencia', 'webpay'];
 
 const EST_RET = { pendiente: { t: 'Pendiente', c: 'warn' }, autorizado: { t: 'Autorizado', c: 'ok' }, rechazado: { t: 'Rechazado', c: 'bad' } };
 
+const ICONOS = {
+  money: 'M2 7h20v10H2z M2 11h20',
+  doc: 'M6 2h9l3 3v17H6z M14 2v4h4',
+  cash: 'M2 6h20v12H2z M12 9a3 3 0 100 6 3 3 0 000-6',
+  card: 'M2 6h20v12H2z M2 10h20',
+  bank: 'M3 9l9-5 9 5 M4 9v9 M9 9v9 M15 9v9 M20 9v9 M3 21h18',
+  web: 'M12 3a9 9 0 100 18 9 9 0 000-18 M3 12h18 M12 3c3 3 3 15 0 18 M12 3c-3 3-3 15 0 18',
+  credit: 'M2 6h20v12H2z M2 10h20 M6 15h4',
+  retiro: 'M12 4v10 M8 11l4 4 4-4 M5 20h14',
+};
+function Ic({ name, bg, fg }) {
+  return (
+    <span className="jc-ic" style={{ background: bg, color: fg }}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={ICONOS[name]} /></svg>
+    </span>
+  );
+}
+
 export default function CobroCaja({ perfil }) {
   const [sesion, setSesion] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -46,6 +64,10 @@ export default function CobroCaja({ perfil }) {
   const [cerrando, setCerrando] = useState(false);
   const [arqueo, setArqueo] = useState('');
   const [editandoDoc, setEditandoDoc] = useState(null);
+  const [ayerTotal, setAyerTotal] = useState(0);
+  const [meta, setMeta] = useState(0);
+  const [editandoMeta, setEditandoMeta] = useState(false);
+  const [metaInput, setMetaInput] = useState('');
 
   const [pidiendo, setPidiendo] = useState(false);
   const [montoRet, setMontoRet] = useState('');
@@ -85,7 +107,30 @@ export default function CobroCaja({ perfil }) {
     } else {
       await sugerirFondo();
     }
+    await cargarComparativos();
     setCargando(false);
+  }
+
+  async function cargarComparativos() {
+    const ayer = new Date(); ayer.setDate(ayer.getDate() - 1);
+    const yyyy = ayer.toLocaleDateString('en-CA');
+    const ini = new Date(yyyy + 'T00:00:00'), fin = new Date(yyyy + 'T23:59:59.999');
+    const { data: ss } = await supabase.from('caja_sesiones').select('id')
+      .gte('abierta_en', ini.toISOString()).lte('abierta_en', fin.toISOString());
+    let total = 0;
+    if (ss && ss.length) {
+      const { data: cs } = await supabase.from('cobros').select('monto').in('sesion_id', ss.map((s) => s.id));
+      total = (cs || []).reduce((a, c) => a + c.monto, 0);
+    }
+    setAyerTotal(total);
+    const { data: cfg } = await supabase.from('configuracion').select('valor').eq('clave', 'meta_diaria').maybeSingle();
+    setMeta(Number(cfg?.valor) || 0);
+  }
+
+  async function guardarMeta() {
+    const v = Number(metaInput) || 0;
+    await supabase.from('configuracion').upsert({ clave: 'meta_diaria', valor: String(v), actualizado_en: new Date().toISOString() }, { onConflict: 'clave' });
+    setMeta(v); setEditandoMeta(false);
   }
 
   async function cargarSaldos() {
@@ -229,6 +274,25 @@ export default function CobroCaja({ perfil }) {
   });
   const docsDia = Object.values(grupos);
 
+  const pctDe = (v) => (totalDia > 0 ? Math.round((v / totalDia) * 100) : 0);
+  const boletas = docsDia.filter((d) => [39, 41].includes(d.tipo_dte)).length;
+  const facturas = docsDia.filter((d) => [33, 34].includes(d.tipo_dte)).length;
+  const trend = ayerTotal > 0 ? Math.round(((totalDia - ayerTotal) / ayerTotal) * 100) : null;
+  const metaPct = meta > 0 ? Math.min(100, (totalDia / meta) * 100) : 0;
+  const falta = Math.max(0, meta - totalDia);
+  const segs = [
+    { label: 'Efectivo', val: tot.efectivo, color: '#0F9D58' },
+    { label: 'Tarjeta', val: tot.tarjeta, color: '#E0A106' },
+    { label: 'Transferencia', val: tot.transferencia, color: '#2563EB' },
+    { label: 'Webpay', val: tot.webpay, color: '#DB2777' },
+    { label: 'Crédito', val: tot.credito_cta_cte, color: '#64748B' },
+    { label: 'Saldo a favor', val: tot.saldo_favor, color: '#8B5CF6' },
+  ].filter((s) => s.val > 0);
+  let acc = 0;
+  const donutBg = totalDia > 0
+    ? `conic-gradient(${segs.map((s) => { const a = (acc / totalDia) * 360; acc += s.val; const b = (acc / totalDia) * 360; return `${s.color} ${a}deg ${b}deg`; }).join(', ')})`
+    : '#E6ECF5';
+
   async function cerrarCaja() {
     const arq = Number(arqueo) || 0;
     const { error } = await supabase.from('caja_sesiones').update({
@@ -265,14 +329,101 @@ export default function CobroCaja({ perfil }) {
       </div>
 
       <div className="jc-cards">
-        <div className="jc-card hero"><div className="lbl">Total del día</div><div className="val">{clp(totalDia)}</div></div>
-        <div className="jc-card"><div className="lbl">Documentos</div><div className="val">{docsDia.length}</div></div>
-        <div className="jc-card"><div className="lbl">Efectivo</div><div className="val">{clp(tot.efectivo)}</div></div>
-        <div className="jc-card"><div className="lbl">Tarjeta</div><div className="val">{clp(tot.tarjeta)}</div></div>
-        <div className="jc-card"><div className="lbl">Transferencia</div><div className="val">{clp(tot.transferencia)}</div></div>
-        <div className="jc-card"><div className="lbl">Webpay</div><div className="val">{clp(tot.webpay)}</div></div>
-        <div className="jc-card"><div className="lbl">Crédito</div><div className="val">{clp(tot.credito_cta_cte)}</div></div>
-        <div className="jc-card"><div className="lbl">Retiros aut.</div><div className="val">{clp(retirosAutorizados)}</div></div>
+        <div className="jc-card">
+          <div className="jc-card-top">
+            <Ic name="money" bg="#EAF0FE" fg="#0840D0" /><span className="lbl">Total del día</span>
+            {trend != null && <span className={`jc-trend ${trend >= 0 ? 'up' : 'down'}`}>{trend >= 0 ? '↗' : '↘'} {Math.abs(trend)}%</span>}
+          </div>
+          <div className="val">{clp(totalDia)}</div>
+          <div className="sub">{ayerTotal > 0 ? `vs ayer ${clp(ayerTotal)}` : 'sin datos de ayer'}</div>
+        </div>
+        <div className="jc-card">
+          <div className="jc-card-top"><Ic name="doc" bg="#EEF1F6" fg="#475569" /><span className="lbl">Documentos</span></div>
+          <div className="val">{docsDia.length}</div>
+          <div className="sub">Boletas {boletas} · Facturas {facturas}</div>
+        </div>
+        <div className="jc-card">
+          <div className="jc-card-top"><Ic name="cash" bg="#E6F4EC" fg="#0F9D58" /><span className="lbl">Efectivo</span></div>
+          <div className="val">{clp(tot.efectivo)}</div>
+          <div className="sub">{pctDe(tot.efectivo)}% del total</div>
+        </div>
+        <div className="jc-card">
+          <div className="jc-card-top"><Ic name="card" bg="#FCF3DA" fg="#B7791F" /><span className="lbl">Tarjeta</span></div>
+          <div className="val">{clp(tot.tarjeta)}</div>
+          <div className="sub">{pctDe(tot.tarjeta)}% del total</div>
+        </div>
+        <div className="jc-card">
+          <div className="jc-card-top"><Ic name="bank" bg="#E3F0FF" fg="#2563EB" /><span className="lbl">Transferencia</span></div>
+          <div className="val">{clp(tot.transferencia)}</div>
+          <div className="sub">{pctDe(tot.transferencia)}% del total</div>
+        </div>
+        <div className="jc-card">
+          <div className="jc-card-top"><Ic name="web" bg="#FCE7F0" fg="#DB2777" /><span className="lbl">Webpay</span></div>
+          <div className="val">{clp(tot.webpay)}</div>
+          <div className="sub">{pctDe(tot.webpay)}% del total</div>
+        </div>
+        <div className="jc-card">
+          <div className="jc-card-top"><Ic name="credit" bg="#EEF1F6" fg="#64748B" /><span className="lbl">Crédito</span></div>
+          <div className="val">{clp(tot.credito_cta_cte)}</div>
+          <div className="sub">{pctDe(tot.credito_cta_cte)}% del total</div>
+        </div>
+        <div className="jc-card">
+          <div className="jc-card-top"><Ic name="retiro" bg="#FCF3DA" fg="#B7791F" /><span className="lbl">Retiros aut.</span></div>
+          <div className="val">{clp(retirosAutorizados)}</div>
+          <div className="sub">Hoy</div>
+        </div>
+      </div>
+
+      <div className="jc-two">
+        <div className="jc-panel">
+          <div className="jc-substrip" style={{ marginBottom: 12 }}>
+            <h2>Meta diaria</h2>
+            {perfil.puede_autorizar && !editandoMeta && <button className="jc-btn sm" onClick={() => { setMetaInput(String(meta)); setEditandoMeta(true); }}>Ajustar</button>}
+          </div>
+          {editandoMeta ? (
+            <div>
+              <label className="jc-lbl">Meta de ventas diaria</label>
+              <input className="jc-input" type="number" value={metaInput} onChange={(e) => setMetaInput(e.target.value)} />
+              <div className="jc-row">
+                <button className="jc-btn" onClick={() => setEditandoMeta(false)}>Cancelar</button>
+                <button className="jc-btn primary" onClick={guardarMeta}>Guardar meta</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="jc-meta">
+                <div>
+                  <div className="lbl">Ventas hoy</div>
+                  <div className="big">{clp(totalDia)}</div>
+                  <div className="sub">Meta diaria: {clp(meta)}</div>
+                  <div className="sub">{meta <= 0 ? 'Define una meta para ver el avance.' : falta > 0 ? `Faltan ${clp(falta)} para la meta` : 'Meta alcanzada'}</div>
+                </div>
+                <div className="jc-ring" style={{ background: `conic-gradient(var(--azul) ${metaPct * 3.6}deg, #E6ECF5 0deg)` }}>
+                  <div className="hole">{Math.round(metaPct)}%</div>
+                </div>
+              </div>
+              <div className="jc-progress"><div style={{ width: `${metaPct}%` }} /></div>
+            </>
+          )}
+        </div>
+
+        <div className="jc-panel">
+          <h2>Distribución de ventas</h2>
+          <div className="jc-dist">
+            <div className="jc-donut" style={{ background: donutBg }}><div className="hole" /></div>
+            <div className="jc-legend">
+              {segs.length === 0 ? (
+                <span className="empty">Aún no hay ventas registradas hoy.</span>
+              ) : (
+                segs.map((s) => (
+                  <div className="it" key={s.label}>
+                    <span className="dot" style={{ background: s.color }} />{s.label}<b>{pctDe(s.val)}%</b>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {cerrando && (
