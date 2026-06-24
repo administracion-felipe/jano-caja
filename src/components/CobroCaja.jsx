@@ -49,8 +49,10 @@ export default function CobroCaja({ perfil }) {
 
   const [pidiendo, setPidiendo] = useState(false);
   const [montoRet, setMontoRet] = useState('');
-  const [motivoRet, setMotivoRet] = useState('retiro');
+  const [tiposRet, setTiposRet] = useState([]);
+  const [motivoRet, setMotivoRet] = useState('');
   const [descRet, setDescRet] = useState('');
+  const [notaRet, setNotaRet] = useState('');
   const [ocupadoRet, setOcupadoRet] = useState(false);
   const [msgRet, setMsgRet] = useState(null);
 
@@ -79,6 +81,7 @@ export default function CobroCaja({ perfil }) {
         .eq('sesion_id', data.id).order('creado_en', { ascending: false });
       setRetiros(rs || []);
       await cargarSaldos();
+      await cargarTipos();
     } else {
       await sugerirFondo();
     }
@@ -89,6 +92,12 @@ export default function CobroCaja({ perfil }) {
     const { data } = await supabase.from('saldos_favor').select('*')
       .eq('estado', 'disponible').gt('saldo', 0).order('creado_en', { ascending: false });
     setSaldos(data || []);
+  }
+
+  async function cargarTipos() {
+    const { data } = await supabase.from('tipos_retiro').select('*').eq('activo', true).order('nombre');
+    setTiposRet(data || []);
+    setMotivoRet((m) => m || data?.[0]?.nombre || '');
   }
 
   async function sugerirFondo() {
@@ -186,14 +195,15 @@ export default function CobroCaja({ perfil }) {
   async function solicitarRetiro() {
     const m = Number(montoRet) || 0;
     if (m <= 0) return setMsgRet({ tipo: 'error', txt: 'Ingresa un monto válido.' });
+    if (!motivoRet) return setMsgRet({ tipo: 'error', txt: 'Elige el tipo de retiro.' });
     setOcupadoRet(true);
     const { data, error } = await supabase.from('retiros').insert({
-      sesion_id: sesion.id, monto: m, motivo: motivoRet, descripcion: descRet || null, solicitado_por: perfil.nombre,
+      sesion_id: sesion.id, monto: m, motivo: motivoRet, descripcion: descRet || null, nota: notaRet || null, solicitado_por: perfil.nombre,
     }).select().single();
     setOcupadoRet(false);
     if (error) return setMsgRet({ tipo: 'error', txt: error.message });
     setRetiros((prev) => [data, ...prev]);
-    setMontoRet(''); setDescRet(''); setMotivoRet('retiro'); setPidiendo(false);
+    setMontoRet(''); setDescRet(''); setNotaRet(''); setMotivoRet(tiposRet[0]?.nombre || ''); setPidiendo(false);
     setMsgRet({ tipo: 'ok', txt: 'Solicitud enviada a autorización.' });
   }
 
@@ -402,15 +412,17 @@ export default function CobroCaja({ perfil }) {
 
         {pidiendo && (
           <div style={{ marginBottom: 14 }}>
-            <label className="jc-lbl">Tipo</label>
+            <label className="jc-lbl">Tipo de retiro</label>
             <select className="jc-select" value={motivoRet} onChange={(e) => setMotivoRet(e.target.value)}>
-              <option value="retiro">Retiro de efectivo</option>
-              <option value="devolucion">Devolución a cliente</option>
+              <option value="">Elegir tipo…</option>
+              {tiposRet.map((t) => <option key={t.id} value={t.nombre}>{t.nombre}</option>)}
             </select>
             <label className="jc-lbl">Monto</label>
             <input className="jc-input" type="number" value={montoRet} onChange={(e) => setMontoRet(e.target.value)} placeholder="0" />
             <label className="jc-lbl">Detalle (opcional)</label>
-            <input className="jc-input" value={descRet} onChange={(e) => setDescRet(e.target.value)} placeholder="Motivo o referencia…" />
+            <input className="jc-input" value={descRet} onChange={(e) => setDescRet(e.target.value)} placeholder="Referencia…" />
+            <label className="jc-lbl">Nota (opcional)</label>
+            <input className="jc-input" value={notaRet} onChange={(e) => setNotaRet(e.target.value)} placeholder="Descripción adicional…" />
             <div className="jc-row">
               <button className="jc-btn primary" disabled={ocupadoRet} onClick={solicitarRetiro}>
                 {ocupadoRet ? 'Enviando…' : 'Enviar a autorización'}
@@ -431,8 +443,8 @@ export default function CobroCaja({ perfil }) {
                 return (
                   <tr key={r.id}>
                     <td>{hora(r.creado_en)}</td>
-                    <td>{r.motivo === 'devolucion' ? 'Devolución' : 'Retiro'}</td>
-                    <td>{r.descripcion || '—'}</td>
+                    <td>{r.motivo || '—'}</td>
+                    <td>{r.descripcion || '—'}{r.nota && <span className="jc-sub">{r.nota}</span>}</td>
                     <td className="num">{clp(r.monto)}</td>
                     <td><span className={`jc-st ${e.c}`}>{e.t}</span></td>
                   </tr>
