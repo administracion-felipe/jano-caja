@@ -14,58 +14,76 @@ function diasHabilesMes(d = new Date()) {
 }
 
 export default function Configuracion({ perfil }) {
-  const [meta, setMeta] = useState(0);
-  const [input, setInput] = useState('');
+  const [metaInput, setMetaInput] = useState('');
+  const [diasInput, setDiasInput] = useState('');
   const [cargando, setCargando] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
 
   const puede = perfil.puede_autorizar;
-  const diasHab = diasHabilesMes();
 
   useEffect(() => { cargar(); }, []);
 
   async function cargar() {
-    const { data } = await supabase.from('configuracion').select('valor').eq('clave', 'meta_mensual').maybeSingle();
-    const v = Number(data?.valor) || 0;
-    setMeta(v); setInput(String(v)); setCargando(false);
+    const { data } = await supabase.from('configuracion').select('clave,valor').in('clave', ['meta_mensual', 'dias_habiles']);
+    const map = {};
+    (data || []).forEach((r) => { map[r.clave] = r.valor; });
+    setMetaInput(map.meta_mensual || '0');
+    setDiasInput(map.dias_habiles || String(diasHabilesMes()));
+    setCargando(false);
   }
 
   async function guardar() {
-    const v = Number(input) || 0;
+    const meta = Number(metaInput) || 0;
+    const dias = Number(diasInput) || 0;
+    if (dias <= 0) return setMsg({ tipo: 'error', txt: 'Los días hábiles deben ser mayores a 0.' });
     setBusy(true); setMsg(null);
-    const { error } = await supabase.from('configuracion').upsert({ clave: 'meta_mensual', valor: String(v), actualizado_en: new Date().toISOString() }, { onConflict: 'clave' });
+    const { error } = await supabase.from('configuracion').upsert([
+      { clave: 'meta_mensual', valor: String(meta), actualizado_en: new Date().toISOString() },
+      { clave: 'dias_habiles', valor: String(dias), actualizado_en: new Date().toISOString() },
+    ], { onConflict: 'clave' });
     setBusy(false);
     if (error) return setMsg({ tipo: 'error', txt: error.message });
-    setMeta(v); setMsg({ tipo: 'ok', txt: 'Meta mensual actualizada.' });
+    setMsg({ tipo: 'ok', txt: 'Configuración guardada.' });
   }
 
   if (cargando) return <p className="jc-cajero">Cargando…</p>;
 
-  const metaDiaria = meta > 0 && diasHab > 0 ? Math.round(meta / diasHab) : 0;
+  const meta = Number(metaInput) || 0;
+  const dias = Number(diasInput) || 0;
+  const metaDiaria = meta > 0 && dias > 0 ? Math.round(meta / dias) : 0;
+  const statVal = { fontSize: 19, fontWeight: 800, letterSpacing: '-.02em', lineHeight: 1.15, wordBreak: 'break-word' };
 
   return (
-    <div className="jc-panel" style={{ maxWidth: 560 }}>
+    <div className="jc-panel" style={{ maxWidth: 720 }}>
       <h2>Meta de ventas</h2>
-      <p className="jc-hint" style={{ marginTop: 0 }}>La meta mensual se reparte entre los {diasHab} días hábiles del mes para calcular la meta diaria.</p>
+      <p className="jc-hint" style={{ marginTop: 0 }}>La meta mensual se reparte entre los días hábiles del mes para calcular la meta diaria. Puedes ajustar ambos valores.</p>
 
       {puede ? (
         <>
-          <label className="jc-lbl">Meta mensual</label>
-          <input className="jc-input" type="number" value={input} onChange={(e) => setInput(e.target.value)} />
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+            <div>
+              <label className="jc-lbl">Meta mensual</label>
+              <input className="jc-input" type="number" value={metaInput} onChange={(e) => setMetaInput(e.target.value)} />
+            </div>
+            <div>
+              <label className="jc-lbl">Días hábiles del mes</label>
+              <input className="jc-input" type="number" value={diasInput} onChange={(e) => setDiasInput(e.target.value)} />
+            </div>
+          </div>
           <div className="jc-row">
-            <button className="jc-btn primary" disabled={busy} onClick={guardar}>{busy ? 'Guardando…' : 'Guardar meta mensual'}</button>
+            <button className="jc-btn primary" disabled={busy} onClick={guardar}>{busy ? 'Guardando…' : 'Guardar configuración'}</button>
           </div>
           {msg && <p className={`jc-msg ${msg.tipo}`}>{msg.txt}</p>}
         </>
       ) : (
-        <p className="jc-cajero">Meta mensual: <b>{clp(meta)}</b></p>
+        <p className="jc-cajero">Meta mensual: <b>{clp(meta)}</b> · Días hábiles: <b>{dias}</b></p>
       )}
 
-      <div className="jc-cards" style={{ marginTop: 18 }}>
-        <div className="jc-card"><div className="lbl">Meta mensual</div><div className="val">{clp(meta)}</div></div>
-        <div className="jc-card"><div className="lbl">Días hábiles</div><div className="val">{diasHab}</div></div>
-        <div className="jc-card"><div className="lbl">Meta diaria</div><div className="val">{clp(metaDiaria)}</div></div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 12, marginTop: 18 }}>
+        <div className="jc-card"><div className="lbl">Meta mensual</div><div style={statVal}>{clp(meta)}</div></div>
+        <div className="jc-card"><div className="lbl">Días hábiles</div><div style={statVal}>{dias}</div></div>
+        <div className="jc-card"><div className="lbl">Meta diaria</div><div style={statVal}>{clp(metaDiaria)}</div></div>
       </div>
     </div>
   );

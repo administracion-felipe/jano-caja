@@ -92,6 +92,7 @@ export default function CobroCaja({ perfil }) {
   const [editandoDoc, setEditandoDoc] = useState(null);
   const [ayerTotal, setAyerTotal] = useState(0);
   const [metaMensual, setMetaMensual] = useState(0);
+  const [diasHabCfg, setDiasHabCfg] = useState(0);
   const [mtdTotal, setMtdTotal] = useState(0);
   const [editandoMeta, setEditandoMeta] = useState(false);
   const [metaInput, setMetaInput] = useState('');
@@ -150,8 +151,11 @@ export default function CobroCaja({ perfil }) {
       total = (cs || []).reduce((a, c) => a + c.monto, 0);
     }
     setAyerTotal(total);
-    const { data: cfg } = await supabase.from('configuracion').select('valor').eq('clave', 'meta_mensual').maybeSingle();
-    setMetaMensual(Number(cfg?.valor) || 0);
+    const { data: cfg } = await supabase.from('configuracion').select('clave,valor').in('clave', ['meta_mensual', 'dias_habiles']);
+    const cmap = {};
+    (cfg || []).forEach((r) => { cmap[r.clave] = r.valor; });
+    setMetaMensual(Number(cmap.meta_mensual) || 0);
+    setDiasHabCfg(Number(cmap.dias_habiles) || 0);
     const now = new Date();
     const iniMes = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
     const { data: ms } = await supabase.from('caja_sesiones').select('id').gte('abierta_en', iniMes.toISOString());
@@ -351,7 +355,7 @@ export default function CobroCaja({ perfil }) {
   const boletas = docsDia.filter((d) => [39, 41].includes(d.tipo_dte)).length;
   const facturas = docsDia.filter((d) => [33, 34].includes(d.tipo_dte)).length;
   const trend = ayerTotal > 0 ? Math.round(((totalDia - ayerTotal) / ayerTotal) * 100) : null;
-  const diasHab = diasHabilesMes();
+  const diasHab = diasHabCfg > 0 ? diasHabCfg : diasHabilesMes();
   const metaDiaria = metaMensual > 0 && diasHab > 0 ? Math.round(metaMensual / diasHab) : 0;
   const diaPct = metaDiaria > 0 ? Math.min(100, (totalDia / metaDiaria) * 100) : 0;
   const mesPct = metaMensual > 0 ? Math.min(100, (mtdTotal / metaMensual) * 100) : 0;
