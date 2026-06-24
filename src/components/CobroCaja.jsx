@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { parseTimbre } from '../lib/parseTimbre';
+import EditarDocumento from './EditarDocumento';
 
 const clp = (n) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n || 0);
@@ -41,6 +42,7 @@ export default function CobroCaja({ perfil }) {
 
   const [cerrando, setCerrando] = useState(false);
   const [arqueo, setArqueo] = useState('');
+  const [editandoDoc, setEditandoDoc] = useState(null);
 
   const [pidiendo, setPidiendo] = useState(false);
   const [montoRet, setMontoRet] = useState('');
@@ -328,7 +330,10 @@ export default function CobroCaja({ perfil }) {
                     <b>Folio {d.folio}</b> · {d.cliente || '—'}
                     {d.descripcion && <span className="jc-sub">{d.descripcion}</span>}
                   </div>
-                  <div className="num"><b>{clp(d.total)}</b></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <b className="num">{clp(d.total)}</b>
+                    {perfil.puede_autorizar && <button className="jc-btn sm" onClick={() => setEditandoDoc(d)}>Editar</button>}
+                  </div>
                 </div>
                 <div className="jc-docrow-lines">
                   {d.lineas.map((l) => (
@@ -394,6 +399,14 @@ export default function CobroCaja({ perfil }) {
         )}
         {retirosPendientes > 0 && <p className="jc-hint">{retirosPendientes} solicitud(es) esperando autorización.</p>}
       </div>
+
+      {editandoDoc && (
+        <EditarDocumento
+          grupo={editandoDoc}
+          onClose={() => setEditandoDoc(null)}
+          onSaved={() => { setEditandoDoc(null); cargarSesion(); }}
+        />
+      )}
     </>
   );
 }

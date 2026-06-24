@@ -46,6 +46,8 @@ export default function Pagos({ perfil }) {
 
   if (cargando) return <p className="jc-cajero">Cargando…</p>;
 
+  const puede = perfil.puede_autorizar;
+
   return (
     <>
       <div className="jc-cards">
@@ -54,6 +56,7 @@ export default function Pagos({ perfil }) {
       </div>
 
       {error && <p className="jc-msg error" style={{ marginTop: 0 }}>{error}</p>}
+      {!puede && <p className="jc-hint" style={{ marginTop: 0, marginBottom: 12 }}>Puedes ver los pagos y las transferencias. Confirmar o rechazar un pago es solo para autorizadores.</p>}
 
       <div className="jc-panel" style={{ marginBottom: 16 }}>
         <h2>Pagos por confirmar · transferencia / webpay</h2>
@@ -82,18 +85,20 @@ export default function Pagos({ perfil }) {
                             <span>{t.fecha}</span>
                             {t.comentario && <div><span>{t.comentario}</span></div>}
                           </div>
-                          <button className="jc-btn sm ok" disabled={bloqueado} onClick={() => resolverCobro(cobro, 'confirmado', t)}>Usar esta</button>
+                          {puede && <button className="jc-btn sm ok" disabled={bloqueado} onClick={() => resolverCobro(cobro, 'confirmado', t)}>Usar esta</button>}
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="jc-nomatch">No hay transferencias recibidas que calcen por monto. Confirma manualmente solo si verificaste el pago.</div>
+                    <div className="jc-nomatch">No hay transferencias recibidas que calcen por monto.</div>
                   )}
 
-                  <div className="jc-acts">
-                    <button className="jc-btn sm danger" disabled={bloqueado} onClick={() => resolverCobro(cobro, 'rechazado')}>Rechazar</button>
-                    <button className="jc-btn sm" disabled={bloqueado} onClick={() => resolverCobro(cobro, 'confirmado')}>Confirmar sin transferencia</button>
-                  </div>
+                  {puede && (
+                    <div className="jc-acts">
+                      <button className="jc-btn sm danger" disabled={bloqueado} onClick={() => resolverCobro(cobro, 'rechazado')}>Rechazar</button>
+                      <button className="jc-btn sm" disabled={bloqueado} onClick={() => resolverCobro(cobro, 'confirmado')}>Confirmar sin transferencia</button>
+                    </div>
+                  )}
                 </div>
               );
             })}
