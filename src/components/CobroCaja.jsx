@@ -81,6 +81,9 @@ export default function CobroCaja({ perfil }) {
   const [lRecibido, setLRecibido] = useState('');
   const [saldos, setSaldos] = useState([]);
   const [lSaldoId, setLSaldoId] = useState('');
+  const [ncMedio, setNcMedio] = useState('');
+  const [ncNombre, setNcNombre] = useState('');
+  const [ncRut, setNcRut] = useState('');
   const [msg, setMsg] = useState(null);
   const [ocupado, setOcupado] = useState(false);
 
@@ -204,6 +207,11 @@ export default function CobroCaja({ perfil }) {
     try {
       const d = parseTimbre(scan);
       setDoc(d); setLineas([]); setLMedio('efectivo'); setLMonto(String(d.total)); setLRecibido(''); setLSaldoId(''); setScan(''); setMsg(null);
+      if (d.tipoDte === 61) {
+        setNcMedio('');
+        setNcNombre(d.razonReceptor && d.razonReceptor !== 'DESCONOCIDO' ? d.razonReceptor : '');
+        setNcRut(d.rutReceptor && d.rutReceptor !== '66666666-6' ? d.rutReceptor : '');
+      }
     } catch (e) { setMsg({ tipo: 'error', txt: e.message }); setScan(''); }
   }
 
@@ -214,16 +222,16 @@ export default function CobroCaja({ perfil }) {
     const m = Number(lMonto) || 0;
     if (m <= 0) return setMsg({ tipo: 'error', txt: 'Ingresa un monto válido.' });
     if (m > restante) return setMsg({ tipo: 'error', txt: `El monto supera lo que falta (${clp(restante)}).` });
-    let saldoId = null, clienteSaldo = null;
+    let saldoId = null, clienteSaldo = null, medioOriginal = null;
     if (lMedio === 'saldo_favor') {
       const s = saldos.find((x) => String(x.id) === String(lSaldoId));
       if (!s) return setMsg({ tipo: 'error', txt: 'Elige el saldo a favor a usar.' });
       const yaUsado = lineas.filter((l) => l.saldo_id === s.id).reduce((a, l) => a + l.monto, 0);
       if (m > s.saldo - yaUsado) return setMsg({ tipo: 'error', txt: `El saldo disponible de ese cliente es ${clp(s.saldo - yaUsado)}.` });
-      saldoId = s.id; clienteSaldo = s.cliente_nombre || s.cliente_rut || 'Cliente';
+      saldoId = s.id; clienteSaldo = s.cliente_nombre || s.cliente_rut || 'Cliente'; medioOriginal = s.medio_pago || null;
     }
     const vuelto = lMedio === 'efectivo' ? Math.max(0, (Number(lRecibido) || m) - m) : 0;
-    const nuevas = [...lineas, { id: 't' + Date.now(), medio: lMedio, monto: m, vuelto, saldo_id: saldoId, cliente_saldo: clienteSaldo }];
+    const nuevas = [...lineas, { id: 't' + Date.now(), medio: lMedio, monto: m, vuelto, saldo_id: saldoId, cliente_saldo: clienteSaldo, medio_original: medioOriginal }];
     setLineas(nuevas);
     const nuevoRestante = doc.total - nuevas.reduce((s, l) => s + l.monto, 0);
     setLMonto(nuevoRestante > 0 ? String(nuevoRestante) : '');
@@ -249,8 +257,8 @@ export default function CobroCaja({ perfil }) {
     }, { onConflict: 'tipo_dte,folio' });
     const filas = lineas.map((l) => ({
       sesion_id: sesion.id, tipo_dte: doc.tipoDte, folio: doc.folio,
-      monto: l.monto, medio_pago: l.medio, vuelto: l.vuelto || 0, cajero: perfil.nombre,
-      saldo_id: l.saldo_id || null,
+      monto: l.monto, medio_pago: l.medio === 'saldo_favor' ? (l.medio_original || 'saldo_favor') : l.medio,
+      vuelto: l.vuelto || 0, cajero: perfil.nombre, saldo_id: l.saldo_id || null,
       estado_pago: REQUIERE_CONFIRMACION.includes(l.medio) ? 'por_confirmar' : 'confirmado',
     }));
     const { data, error } = await supabase.from('cobros').insert(filas).select();
@@ -270,6 +278,34 @@ export default function CobroCaja({ perfil }) {
     setDoc(null); setLineas([]);
     if (Object.keys(usoPorSaldo).length) await cargarSaldos();
     setMsg({ tipo: 'ok', txt: `Documento ${doc.folio} cobrado en ${filas.length} forma(s) de pago${hayPorConfirmar ? ' · hay pagos por confirmar' : ''}.` });
+  }
+
+  async function registrarNC() {
+    if (!ncMedio) return setMsg({ tipo: 'error', txt: 'Elige el medio de pago original.' });
+    if (!ncNombre.trim() && !ncRut.trim()) return setMsg({ tipo: 'error', txt: 'Indica el cliente (nombre o RUT).' });
+    setOcupado(true);
+    const fuera = esFueraHorario(doc.emitidoEn, doc.fechaEmision);
+    await supabase.from('documentos').upsert({
+      tipo_dte: doc.tipoDte, folio: doc.folio, total: -doc.total,
+      rut_receptor: ncRut || doc.rutReceptor, razon_receptor: ncNombre || doc.razonReceptor,
+      fecha_emision: doc.fechaEmision, emitido_en: doc.emitidoEn || null, fuera_horario: fuera,
+      primer_item: doc.primerItem, canal: 'mostrador', forma_pago: ncMedio, estado_sii: 'pendiente', origen: 'timbre',
+    }, { onConflict: 'tipo_dte,folio' });
+    const { error: eS } = await supabase.from('saldos_favor').insert({
+      cliente_nombre: ncNombre || null, cliente_rut: ncRut || null, monto: doc.total, saldo: doc.total,
+      medio_pago: ncMedio, documento_origen: `NC ${doc.folio}`, nota: 'Generado por nota de crédito', creado_por: perfil.nombre,
+    });
+    const { data: cob, error: eC } = await supabase.from('cobros').insert({
+      sesion_id: sesion.id, tipo_dte: doc.tipoDte, folio: doc.folio, monto: -doc.total,
+      medio_pago: ncMedio, vuelto: 0, cajero: perfil.nombre, estado_pago: 'confirmado',
+    }).select().single();
+    setOcupado(false);
+    if (eS || eC) return setMsg({ tipo: 'error', txt: (eS || eC).message });
+    setCobros((prev) => [{ ...cob, cliente: ncNombre || doc.razonReceptor, descripcion: 'Nota de crédito', fuera_horario: fuera }, ...prev]);
+    await cargarSaldos();
+    const nombre = ncNombre || 'cliente';
+    setDoc(null);
+    setMsg({ tipo: 'ok', txt: `Nota de crédito ${doc.folio}: −${clp(doc.total)} en ${medioLabel(ncMedio)}. Saldo a favor de ${nombre} disponible para usar en ${medioLabel(ncMedio)}.` });
   }
 
   async function solicitarRetiro() {
@@ -498,6 +534,28 @@ export default function CobroCaja({ perfil }) {
                 placeholder="Escaneo del timbre…" />
               {msg && <p className={`jc-msg ${msg.tipo}`}>{msg.txt}</p>}
             </>
+          ) : doc.tipoDte === 61 ? (
+            <div className="jc-doc">
+              <div className="meta">{doc.tipoNombre} · folio {doc.folio}</div>
+              <div className="cliente">Nota de crédito</div>
+              {doc.primerItem && <div className="meta">{doc.primerItem}</div>}
+              <div className="monto">{clp(doc.total)}</div>
+              <p className="jc-hint">Resta este monto de lo recibido en el medio original y queda como saldo a favor del cliente, usable en ese mismo medio.</p>
+              <label className="jc-lbl">Cliente</label>
+              <input className="jc-input" value={ncNombre} onChange={(e) => setNcNombre(e.target.value)} placeholder="Nombre del cliente" />
+              <label className="jc-lbl">RUT</label>
+              <input className="jc-input" value={ncRut} onChange={(e) => setNcRut(e.target.value)} placeholder="RUT del cliente" />
+              <label className="jc-lbl">Medio de pago original</label>
+              <select className="jc-select" value={ncMedio} onChange={(e) => setNcMedio(e.target.value)}>
+                <option value="">Elegir medio…</option>
+                {MEDIOS.filter((m) => m.id !== 'saldo_favor').map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+              </select>
+              {msg && <p className={`jc-msg ${msg.tipo}`}>{msg.txt}</p>}
+              <div className="jc-row">
+                <button className="jc-btn" onClick={() => setDoc(null)}>Cancelar</button>
+                <button className="jc-btn primary" disabled={ocupado} onClick={registrarNC}>{ocupado ? 'Registrando…' : 'Registrar nota de crédito'}</button>
+              </div>
+            </div>
           ) : (
             <div className="jc-doc">
               <div className="meta">{doc.tipoNombre} · folio {doc.folio}</div>
@@ -537,7 +595,7 @@ export default function CobroCaja({ perfil }) {
                       }}>
                         <option value="">Elegir cliente…</option>
                         {saldos.map((s) => (
-                          <option key={s.id} value={s.id}>{(s.cliente_nombre || s.cliente_rut || 'Cliente')} · {clp(s.saldo)}</option>
+                          <option key={s.id} value={s.id}>{(s.cliente_nombre || s.cliente_rut || 'Cliente')} · {medioLabel(s.medio_pago)} · {clp(s.saldo)}</option>
                         ))}
                       </select>
                       {saldos.length === 0 && <p className="jc-hint">No hay saldos a favor disponibles. Regístralos en la pestaña Saldos.</p>}
@@ -592,7 +650,7 @@ export default function CobroCaja({ perfil }) {
                 <div className="jc-docrow-lines">
                   {d.lineas.map((l) => (
                     <span key={l.id} className="jc-tag">
-                      {medioLabel(l.medio_pago)} · {clp(l.monto)}{l.estado_pago === 'por_confirmar' && ' (por confirmar)'}
+                      {medioLabel(l.medio_pago)} · {clp(l.monto)}{l.saldo_id ? ' (saldo a favor)' : ''}{l.estado_pago === 'por_confirmar' && ' (por confirmar)'}
                     </span>
                   ))}
                 </div>
