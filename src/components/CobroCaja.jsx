@@ -76,6 +76,7 @@ export default function CobroCaja({ perfil }) {
   const [ncRut, setNcRut] = useState('');
   const [msg, setMsg] = useState(null);
   const [ocupado, setOcupado] = useState(false);
+  const [dupAviso, setDupAviso] = useState(false);
 
   const [cerrando, setCerrando] = useState(false);
   const [arqueo, setArqueo] = useState('');
@@ -203,17 +204,22 @@ export default function CobroCaja({ perfil }) {
     setSesion(data); setCobros([]); setRetiros([]); setMsg(null);
   }
 
-  function leerTimbre() {
+  async function leerTimbre() {
     if (!scan.trim()) return;
+    let d;
     try {
-      const d = parseTimbre(scan);
-      setDoc(d); setLineas([]); setLMedio('efectivo'); setLMonto(String(d.total)); setLRecibido(''); setLSaldoId(''); setScan(''); setMsg(null);
-      if (d.tipoDte === 61) {
-        setNcMedio('');
-        setNcNombre(d.razonReceptor && d.razonReceptor !== 'DESCONOCIDO' ? d.razonReceptor : '');
-        setNcRut(d.rutReceptor && d.rutReceptor !== '66666666-6' ? d.rutReceptor : '');
-      }
-    } catch (e) { setMsg({ tipo: 'error', txt: e.message }); setScan(''); }
+      d = parseTimbre(scan);
+    } catch (e) { setMsg({ tipo: 'error', txt: e.message }); setScan(''); return; }
+    setDupAviso(false);
+    setDoc(d); setLineas([]); setLMedio('efectivo'); setLMonto(String(d.total)); setLRecibido(''); setLSaldoId(''); setScan(''); setMsg(null);
+    if (d.tipoDte === 61) {
+      setNcMedio('');
+      setNcNombre(d.razonReceptor && d.razonReceptor !== 'DESCONOCIDO' ? d.razonReceptor : '');
+      setNcRut(d.rutReceptor && d.rutReceptor !== '66666666-6' ? d.rutReceptor : '');
+    }
+    // ¿Este documento ya fue cobrado antes? No se puede ingresar dos veces.
+    const { data: ya } = await supabase.from('cobros').select('id').eq('tipo_dte', d.tipoDte).eq('folio', d.folio).limit(1);
+    if ((ya || []).length > 0) setDupAviso(true);
   }
 
   const sumaLineas = lineas.reduce((s, l) => s + l.monto, 0);
@@ -246,8 +252,14 @@ export default function CobroCaja({ perfil }) {
   }
 
   async function registrarCobro() {
-    if (!doc || lineas.length === 0 || restante !== 0) return;
+    if (!doc || lineas.length === 0 || restante !== 0 || dupAviso) return;
     setOcupado(true);
+    // Doble verificación: que no se haya cobrado este folio mientras tanto.
+    const { data: ya } = await supabase.from('cobros').select('id').eq('tipo_dte', doc.tipoDte).eq('folio', doc.folio).limit(1);
+    if ((ya || []).length > 0) {
+      setOcupado(false); setDupAviso(true);
+      return setMsg({ tipo: 'error', txt: `El documento ${doc.folio} ya fue cobrado. No se puede ingresar dos veces.` });
+    }
     const fuera = esFueraHorario(doc.emitidoEn, doc.fechaEmision);
     await supabase.from('documentos').upsert({
       tipo_dte: doc.tipoDte, folio: doc.folio, total: doc.total,
@@ -282,9 +294,15 @@ export default function CobroCaja({ perfil }) {
   }
 
   async function registrarNC() {
+    if (dupAviso) return setMsg({ tipo: 'error', txt: `La nota de crédito ${doc.folio} ya fue registrada. No se puede ingresar dos veces.` });
     if (!ncMedio) return setMsg({ tipo: 'error', txt: 'Elige el medio de pago original.' });
     if (!ncNombre.trim() && !ncRut.trim()) return setMsg({ tipo: 'error', txt: 'Indica el cliente (nombre o RUT).' });
     setOcupado(true);
+    const { data: yaNC } = await supabase.from('cobros').select('id').eq('tipo_dte', doc.tipoDte).eq('folio', doc.folio).limit(1);
+    if ((yaNC || []).length > 0) {
+      setOcupado(false); setDupAviso(true);
+      return setMsg({ tipo: 'error', txt: `La nota de crédito ${doc.folio} ya fue registrada. No se puede ingresar dos veces.` });
+    }
     const fuera = esFueraHorario(doc.emitidoEn, doc.fechaEmision);
     await supabase.from('documentos').upsert({
       tipo_dte: doc.tipoDte, folio: doc.folio, total: -doc.total,
@@ -464,6 +482,7 @@ export default function CobroCaja({ perfil }) {
               <div className="cliente">Nota de crédito</div>
               {doc.primerItem && <div className="meta">{doc.primerItem}</div>}
               <div className="monto">{clp(doc.total)}</div>
+              {dupAviso && <div className="jc-alert danger">⚠ Esta nota de crédito (folio {doc.folio}) ya fue registrada. No se puede ingresar dos veces.</div>}
               <p className="jc-hint">Resta este monto de lo recibido en el medio original y queda como saldo a favor del cliente, usable en ese mismo medio.</p>
               <label className="jc-lbl">Cliente</label>
               <input className="jc-input" value={ncNombre} onChange={(e) => setNcNombre(e.target.value)} placeholder="Nombre del cliente" />
@@ -476,8 +495,8 @@ export default function CobroCaja({ perfil }) {
               </select>
               {msg && <p className={`jc-msg ${msg.tipo}`}>{msg.txt}</p>}
               <div className="jc-row">
-                <button className="jc-btn" onClick={() => setDoc(null)}>Cancelar</button>
-                <button className="jc-btn primary" disabled={ocupado} onClick={registrarNC}>{ocupado ? 'Registrando…' : 'Registrar nota de crédito'}</button>
+                <button className="jc-btn" onClick={() => { setDoc(null); setDupAviso(false); }}>Cancelar</button>
+                <button className="jc-btn primary" disabled={ocupado || dupAviso} onClick={registrarNC}>{ocupado ? 'Registrando…' : 'Registrar nota de crédito'}</button>
               </div>
             </div>
           ) : (
@@ -486,6 +505,7 @@ export default function CobroCaja({ perfil }) {
               {doc.razonReceptor && <div className="cliente">{doc.razonReceptor}</div>}
               {doc.primerItem && <div className="meta">{doc.primerItem}</div>}
               <div className="monto">{clp(doc.total)}</div>
+              {dupAviso && <div className="jc-alert danger">⚠ El documento {doc.folio} ya fue cobrado. No se puede ingresar dos veces.</div>}
 
               {lineas.length > 0 && (
                 <div className="jc-lineas">
@@ -498,15 +518,28 @@ export default function CobroCaja({ perfil }) {
                 </div>
               )}
 
-              <div className={`jc-restante${restante === 0 ? ' ok' : ''}`}>
-                {restante > 0 ? <>Falta: {clp(restante)}</> : 'Total cubierto ✓'}
+              <div className={`jc-cover ${restante === 0 ? 'ok' : restante < 0 ? 'over' : 'falta'}`}>
+                <div className="jc-cover-top">
+                  <span className="jc-cover-lbl">
+                    {restante > 0 ? 'Falta por cubrir' : restante < 0 ? 'Pago en exceso' : 'Pago completo'}
+                  </span>
+                  <b className="jc-cover-val">
+                    {restante > 0 ? clp(restante) : restante < 0 ? `+${clp(-restante)}` : '✓ Cubierto'}
+                  </b>
+                </div>
+                <div className="jc-cover-bar">
+                  <div style={{ width: `${doc.total > 0 ? Math.min(100, (sumaLineas / doc.total) * 100) : 0}%` }} />
+                </div>
+                <div className="jc-cover-sub">Pagado {clp(sumaLineas)} de {clp(doc.total)}</div>
               </div>
 
-              {restante > 0 && (
+              {restante > 0 && !dupAviso && (
                 <>
                   <div className="jc-medios">
                     {MEDIOS.map((m) => (
-                      <button key={m.id} className={`jc-medio${lMedio === m.id ? ' on' : ''}`} onClick={() => setLMedio(m.id)}>{m.label}</button>
+                      <button key={m.id} className={`jc-medio${lMedio === m.id ? ' on' : ''}`} onClick={() => setLMedio(m.id)}>
+                        <span className="jc-medio-dot" style={{ background: m.color }} />{m.label}
+                      </button>
                     ))}
                   </div>
                   {lMedio === 'saldo_favor' && (
@@ -544,8 +577,8 @@ export default function CobroCaja({ perfil }) {
               {msg && <p className={`jc-msg ${msg.tipo}`}>{msg.txt}</p>}
 
               <div className="jc-row">
-                <button className="jc-btn" onClick={() => { setDoc(null); setLineas([]); }}>Cancelar</button>
-                <button className="jc-btn primary" disabled={restante !== 0 || ocupado} onClick={registrarCobro}>
+                <button className="jc-btn" onClick={() => { setDoc(null); setLineas([]); setDupAviso(false); }}>Cancelar</button>
+                <button className="jc-btn primary" disabled={restante !== 0 || ocupado || dupAviso} onClick={registrarCobro}>
                   {ocupado ? 'Registrando…' : 'Registrar cobro'}
                 </button>
               </div>

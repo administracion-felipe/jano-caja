@@ -46,7 +46,8 @@ export const CSS = `
 .jc-doc .monto { font-size:34px; font-weight:800; letter-spacing:-0.02em; margin:8px 0 14px; }
 
 .jc-medios { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-.jc-medio { padding:12px; font-size:14px; border:1px solid var(--border); border-radius:9px; background:#fff; cursor:pointer; color:var(--text); }
+.jc-medio { padding:12px; font-size:14px; border:1px solid var(--border); border-radius:9px; background:#fff; cursor:pointer; color:var(--text); display:flex; align-items:center; justify-content:center; gap:8px; }
+.jc-medio-dot { width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
 .jc-medio:hover { border-color:var(--azul); }
 .jc-medio.on { border:2px solid var(--azul); background:var(--azul-050); color:var(--azul-700); font-weight:600; }
 .jc-vuelto { margin-top:10px; font-size:18px; font-weight:700; }
@@ -114,6 +115,22 @@ export const CSS = `
 .jc-x:hover { color:var(--danger); }
 .jc-restante { font-size:15px; font-weight:700; margin:8px 0; }
 .jc-restante.ok { color:var(--ok); }
+.jc-cover { margin:12px 0; padding:12px 14px; border-radius:14px; border:1px solid var(--border); background:#fff; transition:background .2s, border-color .2s; }
+.jc-cover-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.jc-cover-lbl { font-size:13px; font-weight:600; color:var(--muted); }
+.jc-cover-val { font-size:18px; font-weight:800; letter-spacing:-.02em; }
+.jc-cover-bar { height:9px; border-radius:999px; background:#E6ECF5; overflow:hidden; margin:9px 0 6px; }
+.jc-cover-bar > div { height:100%; border-radius:999px; transition:width .25s ease, background .25s; }
+.jc-cover-sub { font-size:12px; color:var(--muted); }
+.jc-cover.falta { background:#FFFBEB; border-color:#FDE68A; }
+.jc-cover.falta .jc-cover-val { color:#B45309; }
+.jc-cover.falta .jc-cover-bar > div { background:#F59E0B; }
+.jc-cover.ok { background:#F0FDF4; border-color:#BBF7D0; }
+.jc-cover.ok .jc-cover-val { color:var(--ok); }
+.jc-cover.ok .jc-cover-bar > div { background:var(--ok); }
+.jc-cover.over { background:#FEF2F2; border-color:#FECACA; }
+.jc-cover.over .jc-cover-val { color:var(--danger); }
+.jc-cover.over .jc-cover-bar > div { background:var(--danger); }
 .jc-docrow { padding:10px 0; border-bottom:1px solid #F0F2F7; }
 .jc-docrow:last-child { border-bottom:none; }
 .jc-docrow-head { display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
