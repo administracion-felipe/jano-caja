@@ -1,6 +1,7 @@
 // src/components/Configuracion.jsx
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { fmtMiles, soloDigitos } from '../lib/num';
 
 const clp = (n) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n || 0);
@@ -69,7 +70,7 @@ export default function Configuracion({ perfil }) {
       {puede ? (
         <>
           <label className="jc-lbl">Meta mensual</label>
-          <input className="jc-input" type="number" value={metaInput} onChange={(e) => setMetaInput(e.target.value)} />
+          <input className="jc-input" type="text" inputMode="numeric" value={fmtMiles(metaInput)} onChange={(e) => setMetaInput(soloDigitos(e.target.value))} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
             <div>
               <label className="jc-lbl">Días hábiles del mes</label>
@@ -77,7 +78,7 @@ export default function Configuracion({ perfil }) {
             </div>
             <div>
               <label className="jc-lbl">Fondo base de caja</label>
-              <input className="jc-input" type="number" value={fondoInput} onChange={(e) => setFondoInput(e.target.value)} />
+              <input className="jc-input" type="text" inputMode="numeric" value={fmtMiles(fondoInput)} onChange={(e) => setFondoInput(soloDigitos(e.target.value))} />
             </div>
           </div>
           <label className="jc-lbl" style={{ marginTop: 12 }}>URL del revisor de correo (Apps Script)</label>

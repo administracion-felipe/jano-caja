@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { MEDIOS as MEDIOS_ALL, medioLabel } from '../lib/medios';
+import { fmtMiles, soloDigitos } from '../lib/num';
 
 const clp = (n) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n || 0);
@@ -72,7 +73,7 @@ export default function SaldosFavor({ perfil }) {
             <div className="jc-editrow">
               <div><label className="jc-lbl">Nombre cliente</label><input className="jc-input" value={nombre} onChange={(e) => setNombre(e.target.value)} /></div>
               <div><label className="jc-lbl">RUT cliente</label><input className="jc-input" value={rut} onChange={(e) => setRut(e.target.value)} placeholder="12.345.678-9" /></div>
-              <div><label className="jc-lbl">Monto</label><input className="jc-input" type="number" value={monto} onChange={(e) => setMonto(e.target.value)} /></div>
+              <div><label className="jc-lbl">Monto</label><input className="jc-input" type="text" inputMode="numeric" value={fmtMiles(monto)} onChange={(e) => setMonto(soloDigitos(e.target.value))} /></div>
               <div>
                 <label className="jc-lbl">Medio de pago original</label>
                 <select className="jc-select" value={medio} onChange={(e) => setMedio(e.target.value)}>

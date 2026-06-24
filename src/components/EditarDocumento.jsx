@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { MEDIOS, medioLabel, REQUIERE_CONFIRMACION as REQ } from '../lib/medios';
+import { fmtMiles, soloDigitos } from '../lib/num';
 import Confirm from './Confirm';
 
 const clp = (n) =>
@@ -120,7 +121,7 @@ export default function EditarDocumento({ grupo, onClose, onSaved }) {
                   <select className="jc-select" style={{ maxWidth: 150 }} value={l.medio} onChange={(e) => setLinea(i, 'medio', e.target.value)}>
                     {MEDIOS.filter((m) => m.id !== 'saldo_favor').map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
                   </select>
-                  <input className="jc-input" style={{ maxWidth: 120 }} type="number" value={l.monto} onChange={(e) => setLinea(i, 'monto', e.target.value)} />
+                  <input className="jc-input" style={{ maxWidth: 120 }} type="text" inputMode="numeric" value={fmtMiles(l.monto)} onChange={(e) => setLinea(i, 'monto', soloDigitos(e.target.value))} />
                   <button className="jc-x" title="Eliminar" onClick={() => toggleDel(i)}>✕</button>
                 </>
               )}
@@ -133,7 +134,7 @@ export default function EditarDocumento({ grupo, onClose, onSaved }) {
           <select className="jc-select" style={{ maxWidth: 150 }} value={aMedio} onChange={(e) => setAMedio(e.target.value)}>
             {MEDIOS.filter((m) => m.id !== 'saldo_favor').map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
           </select>
-          <input className="jc-input" type="number" value={aMonto} onChange={(e) => setAMonto(e.target.value)} placeholder={faltaAsignar > 0 ? String(faltaAsignar) : 'Monto'} />
+          <input className="jc-input" type="text" inputMode="numeric" value={fmtMiles(aMonto)} onChange={(e) => setAMonto(soloDigitos(e.target.value))} placeholder={faltaAsignar > 0 ? fmtMiles(faltaAsignar) : 'Monto'} />
           <button className="jc-btn sm" onClick={agregar}>Agregar</button>
         </div>
 

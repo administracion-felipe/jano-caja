@@ -46,7 +46,7 @@ export const CSS = `
 .jc-doc .monto { font-size:34px; font-weight:800; letter-spacing:-0.02em; margin:8px 0 14px; }
 
 .jc-medios { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-.jc-medio { padding:12px; font-size:14px; border:1px solid var(--border); border-radius:9px; background:#fff; cursor:pointer; color:var(--text); display:flex; align-items:center; justify-content:center; gap:8px; }
+.jc-medio { padding:12px 10px; font-size:13.5px; border:1px solid var(--border); border-radius:9px; background:#fff; cursor:pointer; color:var(--text); display:flex; align-items:center; justify-content:center; gap:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .jc-medio-dot { width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
 .jc-medio:hover { border-color:var(--azul); }
 .jc-medio.on { border:2px solid var(--azul); background:var(--azul-050); color:var(--azul-700); font-weight:600; }

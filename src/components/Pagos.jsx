@@ -1,6 +1,7 @@
 // src/components/Pagos.jsx
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { medioLabel } from '../lib/medios';
 
 const clp = (n) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n || 0);
@@ -11,7 +12,10 @@ const bancoLabel = (b) => BANCO[b] || b;
 function calza(t, cobro) {
   if (t.monto !== cobro.monto) return false;
   if (cobro.medio_pago === 'webpay') return t.banco === 'mercadopago';
-  return t.banco === 'santander' || t.banco === 'bancoestado';
+  if (cobro.medio_pago === 'transferencia_estado') return t.banco === 'bancoestado';
+  if (cobro.medio_pago === 'transferencia_santander') return t.banco === 'santander';
+  if (cobro.medio_pago === 'transferencia') return t.banco === 'santander' || t.banco === 'bancoestado';
+  return false;
 }
 
 export default function Pagos({ perfil }) {
@@ -98,7 +102,7 @@ export default function Pagos({ perfil }) {
               return (
                 <div className="jc-confcard" key={cobro.id}>
                   <div className="jc-confhead">
-                    <div className="who">Folio {cobro.folio} · {cobro.medio_pago === 'webpay' ? 'Webpay' : 'Transferencia'} · {cobro.cajero || '—'}</div>
+                    <div className="who">Folio {cobro.folio} · {medioLabel(cobro.medio_pago)} · {cobro.cajero || '—'}</div>
                     <div className="monto">{clp(cobro.monto)}</div>
                   </div>
 

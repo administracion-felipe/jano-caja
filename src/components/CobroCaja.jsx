@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { parseTimbre } from '../lib/parseTimbre';
 import { MEDIOS, medioLabel, REQUIERE_CONFIRMACION } from '../lib/medios';
+import { fmtMiles, soloDigitos } from '../lib/num';
 import EditarDocumento from './EditarDocumento';
 import PlanillaCaja from './PlanillaCaja';
 
@@ -405,7 +406,7 @@ export default function CobroCaja({ perfil }) {
         <h2>Abrir caja</h2>
         <p className="jc-cajero">Cajero: <b>{perfil.nombre}</b></p>
         <label className="jc-lbl">Fondo inicial</label>
-        <input className="jc-input" type="number" value={fondo} onChange={(e) => setFondo(e.target.value)} placeholder="800000" />
+        <input className="jc-input" type="text" inputMode="numeric" value={fmtMiles(fondo)} onChange={(e) => setFondo(soloDigitos(e.target.value))} placeholder="800.000" />
         {fondoNota && <p className={`jc-hint ${(Number(fondo) || 0) < fondoBase ? 'warn' : ''}`}>{fondoNota}</p>}
         {(Number(fondo) || 0) < fondoBase && (
           <div className="jc-alert warn">La caja abriría con {clp(Number(fondo) || 0)}, bajo el fondo base de {clp(fondoBase)} (faltan {clp(fondoBase - (Number(fondo) || 0))}).</div>
@@ -448,7 +449,7 @@ export default function CobroCaja({ perfil }) {
             <div className="jc-alert danger">⚠ El efectivo esperado es negativo ({clp(efectivoEsperado)}): la caja está en contra. Revisa retiros y cobros antes de cerrar.</div>
           )}
           <label className="jc-lbl">Efectivo contado (arqueo)</label>
-          <input className="jc-input" type="number" value={arqueo} onChange={(e) => setArqueo(e.target.value)} placeholder="0" />
+          <input className="jc-input" type="text" inputMode="numeric" value={fmtMiles(arqueo)} onChange={(e) => setArqueo(soloDigitos(e.target.value))} placeholder="0" />
           {arqueo !== '' && <p className="jc-hint">Diferencia: {clp((Number(arqueo) || 0) - efectivoEsperado)}</p>}
           {arqueo !== '' && (
             <p className={`jc-hint ${(Number(arqueo) || 0) < fondoBase ? 'warn' : ''}`}>
@@ -567,11 +568,11 @@ export default function CobroCaja({ perfil }) {
                     </>
                   )}
                   <label className="jc-lbl">Monto de esta forma de pago</label>
-                  <input className="jc-input" type="number" value={lMonto} onChange={(e) => setLMonto(e.target.value)} />
+                  <input className="jc-input" type="text" inputMode="numeric" value={fmtMiles(lMonto)} onChange={(e) => setLMonto(soloDigitos(e.target.value))} />
                   {lMedio === 'efectivo' && (
                     <>
                       <label className="jc-lbl">Efectivo recibido (opcional)</label>
-                      <input className="jc-input" type="number" value={lRecibido} onChange={(e) => setLRecibido(e.target.value)} placeholder={lMonto} />
+                      <input className="jc-input" type="text" inputMode="numeric" value={fmtMiles(lRecibido)} onChange={(e) => setLRecibido(soloDigitos(e.target.value))} placeholder={fmtMiles(lMonto)} />
                       <div className="jc-hint">Vuelto: {clp(Math.max(0, (Number(lRecibido) || Number(lMonto) || 0) - (Number(lMonto) || 0)))}</div>
                     </>
                   )}
@@ -665,7 +666,7 @@ export default function CobroCaja({ perfil }) {
               {tiposRet.map((t) => <option key={t.id} value={t.nombre}>{t.nombre}</option>)}
             </select>
             <label className="jc-lbl">Monto</label>
-            <input className="jc-input" type="number" value={montoRet} onChange={(e) => setMontoRet(e.target.value)} placeholder="0" />
+            <input className="jc-input" type="text" inputMode="numeric" value={fmtMiles(montoRet)} onChange={(e) => setMontoRet(soloDigitos(e.target.value))} placeholder="0" />
             <label className="jc-lbl">Detalle (opcional)</label>
             <input className="jc-input" value={descRet} onChange={(e) => setDescRet(e.target.value)} placeholder="Referencia…" />
             <label className="jc-lbl">Nota (opcional)</label>
@@ -746,7 +747,7 @@ export default function CobroCaja({ perfil }) {
           {editandoMeta ? (
             <div>
               <label className="jc-lbl">Meta mensual de ventas</label>
-              <input className="jc-input" type="number" value={metaInput} onChange={(e) => setMetaInput(e.target.value)} />
+              <input className="jc-input" type="text" inputMode="numeric" value={fmtMiles(metaInput)} onChange={(e) => setMetaInput(soloDigitos(e.target.value))} />
               <p className="jc-hint">Se divide por los {diasHab} días hábiles del mes para la meta diaria.</p>
               <div className="jc-row">
                 <button className="jc-btn" onClick={() => setEditandoMeta(false)}>Cancelar</button>
