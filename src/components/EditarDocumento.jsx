@@ -23,6 +23,12 @@ export default function EditarDocumento({ grupo, onClose, onSaved }) {
   }, []);
 
   const suma = lineas.filter((l) => !l._del).reduce((s, l) => s + (Number(l.monto) || 0), 0);
+  const diferencia = suma - docTotal;
+  const balanceado = Math.abs(diferencia) < 1;          // la suma debe igualar el total del documento
+  const sobra = Math.abs(suma) > Math.abs(docTotal);
+  const hayLineas = lineas.filter((l) => !l._del).length > 0;
+  const puedeGuardar = balanceado && hayLineas;
+  const faltaAsignar = Math.max(0, docTotal - suma);
 
   function setLinea(i, campo, val) { setLineas((prev) => prev.map((l, idx) => idx === i ? { ...l, [campo]: val } : l)); }
   function toggleDel(i) { setLineas((prev) => prev.map((l, idx) => idx === i ? { ...l, _del: !l._del } : l)); }
@@ -34,6 +40,7 @@ export default function EditarDocumento({ grupo, onClose, onSaved }) {
   }
 
   async function guardar() {
+    if (!puedeGuardar) { setConfirmar(false); setError('La suma de las formas de pago debe ser igual al total del documento.'); return; }
     setBusy(true); setError(null);
     try {
       const aEliminar = lineas.filter((l) => l.id && l._del).map((l) => l.id);
@@ -85,10 +92,18 @@ export default function EditarDocumento({ grupo, onClose, onSaved }) {
     <div className="jc-modal-bg" onClick={onClose}>
       <div className="jc-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
         <h3>Editar formas de pago · Folio {grupo.folio}</h3>
-        <p>
-          Total documento: <b>{clp(docTotal)}</b> · Suma actual: <b>{clp(suma)}</b>
-          {suma !== docTotal && <span style={{ color: '#B3261E' }}> · diferencia {clp(suma - docTotal)}</span>}
-        </p>
+        <p style={{ marginBottom: 6 }}>Total del documento: <b>{clp(docTotal)}</b> <span className="jc-sub" style={{ display: 'inline' }}>(fijo, no se puede cambiar)</span></p>
+
+        <div className={`jc-cover ${balanceado ? 'ok' : sobra ? 'over' : 'falta'}`}>
+          <div className="jc-cover-top">
+            <span className="jc-cover-lbl">{balanceado ? 'Asignación completa' : sobra ? 'Asignado de más' : 'Falta por asignar'}</span>
+            <b className="jc-cover-val">{balanceado ? '✓ Calza' : clp(Math.abs(diferencia))}</b>
+          </div>
+          <div className="jc-cover-bar">
+            <div style={{ width: `${Math.abs(docTotal) > 0 ? Math.min(100, (Math.abs(suma) / Math.abs(docTotal)) * 100) : 0}%` }} />
+          </div>
+          <div className="jc-cover-sub">Asignado {clp(suma)} de {clp(docTotal)}</div>
+        </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '10px 0' }}>
           {lineas.map((l, i) => (
@@ -118,7 +133,7 @@ export default function EditarDocumento({ grupo, onClose, onSaved }) {
           <select className="jc-select" style={{ maxWidth: 150 }} value={aMedio} onChange={(e) => setAMedio(e.target.value)}>
             {MEDIOS.filter((m) => m.id !== 'saldo_favor').map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
           </select>
-          <input className="jc-input" type="number" value={aMonto} onChange={(e) => setAMonto(e.target.value)} placeholder="Monto" />
+          <input className="jc-input" type="number" value={aMonto} onChange={(e) => setAMonto(e.target.value)} placeholder={faltaAsignar > 0 ? String(faltaAsignar) : 'Monto'} />
           <button className="jc-btn sm" onClick={agregar}>Agregar</button>
         </div>
 
@@ -126,8 +141,13 @@ export default function EditarDocumento({ grupo, onClose, onSaved }) {
 
         <div className="jc-row">
           <button className="jc-btn" onClick={onClose}>Cancelar</button>
-          <button className="jc-btn primary" onClick={() => setConfirmar(true)}>Guardar cambios</button>
+          <button className="jc-btn primary" disabled={!puedeGuardar} onClick={() => setConfirmar(true)}>Guardar cambios</button>
         </div>
+        {!puedeGuardar && (
+          <p className="jc-hint warn" style={{ marginTop: 6 }}>
+            {hayLineas ? 'La suma de las formas de pago debe ser igual al total del documento para poder guardar.' : 'El documento debe tener al menos una forma de pago.'}
+          </p>
+        )}
 
         <div style={{ borderTop: '1px solid var(--border)', marginTop: 14, paddingTop: 12 }}>
           <button className="jc-btn danger" style={{ width: '100%' }} onClick={() => setConfirmarDel(true)}>Eliminar documento completo</button>
