@@ -229,6 +229,10 @@ export const CSS = `
 .jc-st.ok { color:#15803D; background:#DCFCE7; }
 .jc-st.warn { color:#B45309; background:#FEF3C7; }
 .jc-st.bad { color:#B91C1C; background:#FEE2E2; }
+.jc-alert { border-radius:12px; padding:12px 14px; font-size:13.5px; font-weight:600; margin:6px 0 12px; line-height:1.4; border:1px solid transparent; }
+.jc-alert.danger { color:#991B1B; background:#FEF2F2; border-color:#FECACA; }
+.jc-alert.warn { color:#92400E; background:#FFFBEB; border-color:#FDE68A; }
+.jc-hint.warn { color:#B45309; font-weight:600; }
 .jc-tag { background:#F1F5F9; color:#334155; border-radius:8px; padding:4px 9px; font-size:12px; font-weight:500; }
 .jc-badge { background:var(--azul-050); color:var(--azul); }
 .jc-scan { border:2px dashed #CBD7E6; border-radius:18px; background:#FBFCFE; padding:30px 20px; text-align:center; transition:border-color .2s, background .2s; }

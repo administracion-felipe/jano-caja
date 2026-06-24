@@ -93,6 +93,7 @@ export default function CobroCaja({ perfil }) {
   const [ayerTotal, setAyerTotal] = useState(0);
   const [metaMensual, setMetaMensual] = useState(0);
   const [diasHabCfg, setDiasHabCfg] = useState(0);
+  const [fondoBase, setFondoBase] = useState(800000);
   const [mtdTotal, setMtdTotal] = useState(0);
   const [editandoMeta, setEditandoMeta] = useState(false);
   const [metaInput, setMetaInput] = useState('');
@@ -151,11 +152,12 @@ export default function CobroCaja({ perfil }) {
       total = (cs || []).reduce((a, c) => a + c.monto, 0);
     }
     setAyerTotal(total);
-    const { data: cfg } = await supabase.from('configuracion').select('clave,valor').in('clave', ['meta_mensual', 'dias_habiles']);
+    const { data: cfg } = await supabase.from('configuracion').select('clave,valor').in('clave', ['meta_mensual', 'dias_habiles', 'fondo_base']);
     const cmap = {};
     (cfg || []).forEach((r) => { cmap[r.clave] = r.valor; });
     setMetaMensual(Number(cmap.meta_mensual) || 0);
     setDiasHabCfg(Number(cmap.dias_habiles) || 0);
+    setFondoBase(Number(cmap.fondo_base) || 800000);
     const now = new Date();
     const iniMes = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
     const { data: ms } = await supabase.from('caja_sesiones').select('id').gte('abierta_en', iniMes.toISOString());
@@ -186,17 +188,20 @@ export default function CobroCaja({ perfil }) {
   }
 
   async function sugerirFondo() {
+    const { data: cfgFB } = await supabase.from('configuracion').select('valor').eq('clave', 'fondo_base').maybeSingle();
+    const base = Number(cfgFB?.valor) || 800000;
+    setFondoBase(base);
     const { data: ult } = await supabase.from('caja_sesiones').select('*')
       .eq('estado', 'cerrada').order('cerrada_en', { ascending: false }).limit(1).maybeSingle();
-    if (!ult) { setFondo('800000'); setFondoNota(null); return; }
-    const { data: rs } = await supabase.from('retiros').select('monto,estado')
-      .eq('sesion_id', ult.id).eq('estado', 'autorizado');
-    const usado = (rs || []).reduce((s, x) => s + x.monto, 0);
-    const saldo = Math.max(0, (ult.fondo_inicial || 0) - usado);
+    if (!ult) { setFondo(String(base)); setFondoNota(`Fondo base ${clp(base)}. Es la primera caja registrada.`); return; }
+    // Lo que se traspasa es el efectivo físico contado en el cierre anterior.
+    const saldo = ult.arqueo_efectivo != null ? ult.arqueo_efectivo : (ult.fondo_inicial || base);
     setFondo(String(saldo));
-    setFondoNota(usado > 0
-      ? `Saldo traspasado del cierre anterior: ${clp(ult.fondo_inicial)} − ${clp(usado)} en retiros. Ajusta si repusiste el fondo.`
-      : 'Saldo traspasado del cierre anterior. Ajusta si repusiste el fondo.');
+    if (saldo < base) {
+      setFondoNota(`⚠ La caja anterior cerró con ${clp(saldo)}, bajo el fondo base de ${clp(base)} (faltan ${clp(base - saldo)}). Revisa o repón el fondo antes de abrir.`);
+    } else {
+      setFondoNota(`Saldo traspasado del cierre anterior: ${clp(saldo)}. Ajústalo si depositaste el excedente o repusiste el fondo.`);
+    }
   }
 
   async function abrirCaja() {
@@ -394,7 +399,10 @@ export default function CobroCaja({ perfil }) {
         <p className="jc-cajero">Cajero: <b>{perfil.nombre}</b></p>
         <label className="jc-lbl">Fondo inicial</label>
         <input className="jc-input" type="number" value={fondo} onChange={(e) => setFondo(e.target.value)} placeholder="800000" />
-        {fondoNota && <p className="jc-hint">{fondoNota}</p>}
+        {fondoNota && <p className={`jc-hint ${(Number(fondo) || 0) < fondoBase ? 'warn' : ''}`}>{fondoNota}</p>}
+        {(Number(fondo) || 0) < fondoBase && (
+          <div className="jc-alert warn">La caja abriría con {clp(Number(fondo) || 0)}, bajo el fondo base de {clp(fondoBase)} (faltan {clp(fondoBase - (Number(fondo) || 0))}).</div>
+        )}
         {msg && <p className={`jc-msg ${msg.tipo}`}>{msg.txt}</p>}
         <div className="jc-row"><button className="jc-btn primary" onClick={abrirCaja}>Abrir caja</button></div>
       </div>
@@ -407,6 +415,13 @@ export default function CobroCaja({ perfil }) {
         <span className="jc-badge">Caja abierta · {perfil.nombre}</span>
         <button className="jc-btn" onClick={() => setCerrando(true)}>Cerrar caja</button>
       </div>
+
+      {efectivoEsperado < 0 && (
+        <div className="jc-alert danger">⚠ La caja quedó en contra: el efectivo esperado es {clp(efectivoEsperado)}. Revisa los retiros y los cobros en efectivo.</div>
+      )}
+      {(sesion?.fondo_inicial || 0) < fondoBase && (
+        <div className="jc-alert warn">La caja abrió con {clp(sesion?.fondo_inicial || 0)}, bajo el fondo base de {clp(fondoBase)} (faltan {clp(fondoBase - (sesion?.fondo_inicial || 0))}).</div>
+      )}
 
       <div className="jc-cards">
         <div className="jc-card">
@@ -519,9 +534,18 @@ export default function CobroCaja({ perfil }) {
           <p className="jc-cajero">Efectivo esperado en cajón: <b>{clp(efectivoEsperado)}</b></p>
           <p className="jc-hint">Fondo {clp(sesion.fondo_inicial)} + efectivo en caja {clp(efectivoCajon)} − retiros autorizados {clp(retirosAutorizados)}</p>
           <p className="jc-hint">No incluye notas de crédito ni saldos a favor: esa plata queda en la caja.</p>
+          {efectivoEsperado < 0 && (
+            <div className="jc-alert danger">⚠ El efectivo esperado es negativo ({clp(efectivoEsperado)}): la caja está en contra. Revisa retiros y cobros antes de cerrar.</div>
+          )}
           <label className="jc-lbl">Efectivo contado (arqueo)</label>
           <input className="jc-input" type="number" value={arqueo} onChange={(e) => setArqueo(e.target.value)} placeholder="0" />
           {arqueo !== '' && <p className="jc-hint">Diferencia: {clp((Number(arqueo) || 0) - efectivoEsperado)}</p>}
+          {arqueo !== '' && (
+            <p className={`jc-hint ${(Number(arqueo) || 0) < fondoBase ? 'warn' : ''}`}>
+              Se traspasa al día siguiente: <b>{clp(Number(arqueo) || 0)}</b>
+              {(Number(arqueo) || 0) < fondoBase ? ` · bajo el fondo base de ${clp(fondoBase)} (faltan ${clp(fondoBase - (Number(arqueo) || 0))})` : ''}
+            </p>
+          )}
           <div className="jc-row">
             <button className="jc-btn" onClick={() => setCerrando(false)}>Cancelar</button>
             <button className="jc-btn primary" onClick={cerrarCaja}>Confirmar cierre</button>

@@ -18,11 +18,13 @@ const MEDIOS = [
 
 const hoyStr = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local
 
-export default function Historial() {
+export default function Historial({ perfil }) {
   const [fecha, setFecha] = useState(hoyStr());
   const [sesiones, setSesiones] = useState([]);
   const [fuera, setFuera] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const [confirmId, setConfirmId] = useState(null);
+  const [aviso, setAviso] = useState(null);
 
   useEffect(() => { cargar(); }, [fecha]);
   useEffect(() => { cargarFuera(); }, []);
@@ -65,6 +67,25 @@ export default function Historial() {
     setFecha(d.toLocaleDateString('en-CA'));
   }
 
+  async function reabrir(s) {
+    setAviso(null);
+    // No permitir dos cajas abiertas a la vez.
+    const { data: ab } = await supabase.from('caja_sesiones').select('id,cajero')
+      .eq('estado', 'abierta').limit(1).maybeSingle();
+    if (ab) {
+      setConfirmId(null);
+      setAviso({ tipo: 'error', txt: `Ya hay una caja abierta (${ab.cajero}). Ciérrala antes de reabrir otra.` });
+      return;
+    }
+    const { error } = await supabase.from('caja_sesiones')
+      .update({ estado: 'abierta', cerrada_en: null, arqueo_efectivo: null, diferencia: null })
+      .eq('id', s.id);
+    setConfirmId(null);
+    if (error) { setAviso({ tipo: 'error', txt: error.message }); return; }
+    setAviso({ tipo: 'ok', txt: 'Caja reabierta. Ve a la pestaña Caja para editar cobros, retiros y volver a cerrarla.' });
+    cargar();
+  }
+
   const totalDelDia = sesiones.reduce((a, s) => a + s.totalDia, 0);
 
   return (
@@ -82,6 +103,7 @@ export default function Historial() {
         {!cargando && sesiones.length > 0 && (
           <p className="jc-hint" style={{ marginTop: 8 }}>Total del día: <b>{clp(totalDelDia)}</b> en {sesiones.length} caja(s).</p>
         )}
+        {aviso && <p className={`jc-msg ${aviso.tipo}`}>{aviso.txt}</p>}
       </div>
 
       {cargando ? (
@@ -107,7 +129,23 @@ export default function Historial() {
               <div className="jc-card"><div className="lbl">Retiros aut.</div><div className="val">{clp(s.retAut)}</div></div>
             </div>
             {s.estado === 'cerrada' && (
-              <p className="jc-hint">Fondo {clp(s.fondo_inicial)} · Arqueo {clp(s.arqueo_efectivo)} · Diferencia {clp(s.diferencia)}</p>
+              <>
+                <p className="jc-hint">Fondo {clp(s.fondo_inicial)} · Arqueo {clp(s.arqueo_efectivo)} · Diferencia {clp(s.diferencia)}</p>
+                {confirmId === s.id ? (
+                  <div className="jc-row" style={{ alignItems: 'center', gap: 10 }}>
+                    <span className="jc-hint" style={{ margin: 0 }}>¿Reabrir esta caja para editarla?</span>
+                    <button className="jc-btn sm primary" onClick={() => reabrir(s)}>Sí, reabrir</button>
+                    <button className="jc-btn sm" onClick={() => setConfirmId(null)}>Cancelar</button>
+                  </div>
+                ) : (
+                  <div className="jc-row">
+                    <button className="jc-btn sm" onClick={() => { setAviso(null); setConfirmId(s.id); }}>Reabrir caja</button>
+                  </div>
+                )}
+              </>
+            )}
+            {s.estado === 'abierta' && (
+              <p className="jc-hint warn">Esta caja está abierta. Edítala desde la pestaña Caja y ciérrala ahí.</p>
             )}
           </div>
         ))

@@ -88,7 +88,7 @@ export default function Shell({ perfil, onSalir }) {
           <div className="jc-content">
             {tab === 'caja' && <CobroCaja perfil={perfil} />}
             {tab === 'conc' && <Conciliacion />}
-            {tab === 'historial' && <Historial />}
+            {tab === 'historial' && <Historial perfil={perfil} />}
             {tab === 'pagos' && <Pagos perfil={perfil} />}
             {tab === 'saldos' && <SaldosFavor perfil={perfil} />}
             {tab === 'autoriz' && <Autorizaciones perfil={perfil} />}
