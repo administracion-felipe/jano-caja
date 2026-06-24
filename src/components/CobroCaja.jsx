@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { parseTimbre } from '../lib/parseTimbre';
 import { MEDIOS, medioLabel, REQUIERE_CONFIRMACION } from '../lib/medios';
 import EditarDocumento from './EditarDocumento';
+import PlanillaCaja from './PlanillaCaja';
 
 const clp = (n) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n || 0);
@@ -86,6 +87,7 @@ export default function CobroCaja({ perfil }) {
   const [diasHabCfg, setDiasHabCfg] = useState(0);
   const [fondoBase, setFondoBase] = useState(800000);
   const [verResumen, setVerResumen] = useState(false);
+  const [vista, setVista] = useState('cobro');
   const [filtroDoc, setFiltroDoc] = useState('');
   const [mtdTotal, setMtdTotal] = useState(0);
   const [editandoMeta, setEditandoMeta] = useState(false);
@@ -431,6 +433,11 @@ export default function CobroCaja({ perfil }) {
         <div className="jc-alert warn">La caja abrió con {clp(sesion?.fondo_inicial || 0)}, bajo el fondo base de {clp(fondoBase)} (faltan {clp(fondoBase - (sesion?.fondo_inicial || 0))}).</div>
       )}
 
+      <div className="jc-viewtabs">
+        <button className={`jc-viewtab${vista === 'cobro' ? ' on' : ''}`} onClick={() => setVista('cobro')}>Cobro</button>
+        <button className={`jc-viewtab${vista === 'planilla' ? ' on' : ''}`} onClick={() => setVista('planilla')}>Planilla</button>
+      </div>
+
       {cerrando && (
         <div className="jc-panel" style={{ marginBottom: 16 }}>
           <h2>Cierre de caja</h2>
@@ -456,6 +463,7 @@ export default function CobroCaja({ perfil }) {
         </div>
       )}
 
+      {vista === 'cobro' && (<>
       <div className="jc-grid">
         <div className="jc-panel">
           <h2>Nuevo cobro</h2>
@@ -788,6 +796,12 @@ export default function CobroCaja({ perfil }) {
         </div>
       </div>
         </>
+      )}
+      </>
+      )}
+
+      {vista === 'planilla' && (
+        <PlanillaCaja cobros={cobros} retiros={retiros} sesion={sesion} fondoBase={fondoBase} onEditar={setEditandoDoc} />
       )}
 
       {editandoDoc && (
