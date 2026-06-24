@@ -32,8 +32,10 @@ export default function CobroCaja({ perfil }) {
 
   const [scan, setScan] = useState('');
   const [doc, setDoc] = useState(null);
-  const [medio, setMedio] = useState(null);
-  const [recibido, setRecibido] = useState('');
+  const [lineas, setLineas] = useState([]);
+  const [lMedio, setLMedio] = useState('efectivo');
+  const [lMonto, setLMonto] = useState('');
+  const [lRecibido, setLRecibido] = useState('');
   const [msg, setMsg] = useState(null);
   const [ocupado, setOcupado] = useState(false);
 
@@ -102,31 +104,53 @@ export default function CobroCaja({ perfil }) {
     if (!scan.trim()) return;
     try {
       const d = parseTimbre(scan);
-      setDoc(d); setMedio(null); setRecibido(''); setScan(''); setMsg(null);
+      setDoc(d); setLineas([]); setLMedio('efectivo'); setLMonto(String(d.total)); setLRecibido(''); setScan(''); setMsg(null);
     } catch (e) { setMsg({ tipo: 'error', txt: e.message }); setScan(''); }
   }
 
-  async function confirmarCobro() {
-    if (!doc || !medio) return;
+  const sumaLineas = lineas.reduce((s, l) => s + l.monto, 0);
+  const restante = doc ? doc.total - sumaLineas : 0;
+
+  function agregarLinea() {
+    const m = Number(lMonto) || 0;
+    if (m <= 0) return setMsg({ tipo: 'error', txt: 'Ingresa un monto válido.' });
+    if (m > restante) return setMsg({ tipo: 'error', txt: `El monto supera lo que falta (${clp(restante)}).` });
+    const vuelto = lMedio === 'efectivo' ? Math.max(0, (Number(lRecibido) || m) - m) : 0;
+    const nuevas = [...lineas, { id: 't' + Date.now(), medio: lMedio, monto: m, vuelto }];
+    setLineas(nuevas);
+    const nuevoRestante = doc.total - nuevas.reduce((s, l) => s + l.monto, 0);
+    setLMonto(nuevoRestante > 0 ? String(nuevoRestante) : '');
+    setLRecibido(''); setMsg(null);
+  }
+
+  function quitarLinea(id) {
+    const nuevas = lineas.filter((l) => l.id !== id);
+    setLineas(nuevas);
+    setLMonto(String(doc.total - nuevas.reduce((s, l) => s + l.monto, 0)));
+  }
+
+  async function registrarCobro() {
+    if (!doc || lineas.length === 0 || restante !== 0) return;
     setOcupado(true);
-    const vuelto = medio === 'efectivo' ? Math.max(0, (Number(recibido) || 0) - doc.total) : 0;
-    const estadoPago = REQUIERE_CONFIRMACION.includes(medio) ? 'por_confirmar' : 'confirmado';
     await supabase.from('documentos').upsert({
       tipo_dte: doc.tipoDte, folio: doc.folio, total: doc.total,
       rut_receptor: doc.rutReceptor, razon_receptor: doc.razonReceptor,
       fecha_emision: doc.fechaEmision, primer_item: doc.primerItem, canal: 'mostrador',
-      forma_pago: medio, estado_sii: 'pendiente', origen: 'timbre',
+      forma_pago: lineas.length > 1 ? 'mixto' : lineas[0].medio, estado_sii: 'pendiente', origen: 'timbre',
     }, { onConflict: 'tipo_dte,folio' });
-    const { data, error } = await supabase.from('cobros').insert({
+    const filas = lineas.map((l) => ({
       sesion_id: sesion.id, tipo_dte: doc.tipoDte, folio: doc.folio,
-      monto: doc.total, medio_pago: medio, vuelto, cajero: perfil.nombre, estado_pago: estadoPago,
-    }).select().single();
+      monto: l.monto, medio_pago: l.medio, vuelto: l.vuelto || 0, cajero: perfil.nombre,
+      estado_pago: REQUIERE_CONFIRMACION.includes(l.medio) ? 'por_confirmar' : 'confirmado',
+    }));
+    const { data, error } = await supabase.from('cobros').insert(filas).select();
     setOcupado(false);
     if (error) return setMsg({ tipo: 'error', txt: error.message });
-    setCobros((prev) => [{ ...data, cliente: doc.razonReceptor, descripcion: doc.primerItem }, ...prev]);
-    setDoc(null); setMedio(null); setRecibido('');
-    const aviso = estadoPago === 'por_confirmar' ? ' · queda por confirmar' : '';
-    setMsg({ tipo: 'ok', txt: `Cobro registrado · folio ${doc.folio}${vuelto ? ` · vuelto ${clp(vuelto)}` : ''}${aviso}` });
+    const conMeta = (data || []).map((c) => ({ ...c, cliente: doc.razonReceptor, descripcion: doc.primerItem }));
+    setCobros((prev) => [...conMeta, ...prev]);
+    const hayPorConfirmar = filas.some((f) => f.estado_pago === 'por_confirmar');
+    setDoc(null); setLineas([]);
+    setMsg({ tipo: 'ok', txt: `Documento ${doc.folio} cobrado en ${filas.length} forma(s) de pago${hayPorConfirmar ? ' · hay pagos por confirmar' : ''}.` });
   }
 
   async function solicitarRetiro() {
@@ -151,6 +175,16 @@ export default function CobroCaja({ perfil }) {
   const retirosAutorizados = retiros.filter((r) => r.estado === 'autorizado').reduce((s, r) => s + r.monto, 0);
   const retirosPendientes = retiros.filter((r) => r.estado === 'pendiente').length;
   const efectivoEsperado = (sesion?.fondo_inicial || 0) + (tot.efectivo || 0) - retirosAutorizados;
+
+  // Agrupar los cobros del día por documento (folio)
+  const grupos = {};
+  cobros.forEach((c) => {
+    const k = `${c.tipo_dte}-${c.folio}`;
+    if (!grupos[k]) grupos[k] = { tipo_dte: c.tipo_dte, folio: c.folio, cliente: c.cliente, descripcion: c.descripcion, lineas: [], total: 0 };
+    grupos[k].lineas.push(c);
+    grupos[k].total += c.monto;
+  });
+  const docsDia = Object.values(grupos);
 
   async function cerrarCaja() {
     const arq = Number(arqueo) || 0;
@@ -189,7 +223,7 @@ export default function CobroCaja({ perfil }) {
 
       <div className="jc-cards">
         <div className="jc-card hero"><div className="lbl">Total del día</div><div className="val">{clp(totalDia)}</div></div>
-        <div className="jc-card"><div className="lbl">Documentos</div><div className="val">{cobros.length}</div></div>
+        <div className="jc-card"><div className="lbl">Documentos</div><div className="val">{docsDia.length}</div></div>
         <div className="jc-card"><div className="lbl">Efectivo</div><div className="val">{clp(tot.efectivo)}</div></div>
         <div className="jc-card"><div className="lbl">Tarjeta</div><div className="val">{clp(tot.tarjeta)}</div></div>
         <div className="jc-card"><div className="lbl">Transferencia</div><div className="val">{clp(tot.transferencia)}</div></div>
@@ -231,22 +265,50 @@ export default function CobroCaja({ perfil }) {
               {doc.razonReceptor && <div className="cliente">{doc.razonReceptor}</div>}
               {doc.primerItem && <div className="meta">{doc.primerItem}</div>}
               <div className="monto">{clp(doc.total)}</div>
-              <div className="jc-medios">
-                {MEDIOS.map((m) => (
-                  <button key={m.id} className={`jc-medio${medio === m.id ? ' on' : ''}`} onClick={() => setMedio(m.id)}>{m.label}</button>
-                ))}
-              </div>
-              {medio === 'efectivo' && (
-                <div>
-                  <label className="jc-lbl">Monto recibido</label>
-                  <input className="jc-input" type="number" value={recibido} onChange={(e) => setRecibido(e.target.value)} placeholder="0" />
-                  <div className="jc-vuelto">Vuelto: {clp(Math.max(0, (Number(recibido) || 0) - doc.total))}</div>
+
+              {lineas.length > 0 && (
+                <div className="jc-lineas">
+                  {lineas.map((l) => (
+                    <div className="jc-linea" key={l.id}>
+                      <span>{medioLabel(l.medio)} · {clp(l.monto)}{l.vuelto ? ` · vuelto ${clp(l.vuelto)}` : ''}</span>
+                      <button className="jc-x" onClick={() => quitarLinea(l.id)}>✕</button>
+                    </div>
+                  ))}
                 </div>
               )}
-              {REQUIERE_CONFIRMACION.includes(medio) && <p className="jc-hint">Este pago quedará "por confirmar" hasta que un autorizador lo valide.</p>}
+
+              <div className={`jc-restante${restante === 0 ? ' ok' : ''}`}>
+                {restante > 0 ? <>Falta: {clp(restante)}</> : 'Total cubierto ✓'}
+              </div>
+
+              {restante > 0 && (
+                <>
+                  <div className="jc-medios">
+                    {MEDIOS.map((m) => (
+                      <button key={m.id} className={`jc-medio${lMedio === m.id ? ' on' : ''}`} onClick={() => setLMedio(m.id)}>{m.label}</button>
+                    ))}
+                  </div>
+                  <label className="jc-lbl">Monto de esta forma de pago</label>
+                  <input className="jc-input" type="number" value={lMonto} onChange={(e) => setLMonto(e.target.value)} />
+                  {lMedio === 'efectivo' && (
+                    <>
+                      <label className="jc-lbl">Efectivo recibido (opcional)</label>
+                      <input className="jc-input" type="number" value={lRecibido} onChange={(e) => setLRecibido(e.target.value)} placeholder={lMonto} />
+                      <div className="jc-hint">Vuelto: {clp(Math.max(0, (Number(lRecibido) || Number(lMonto) || 0) - (Number(lMonto) || 0)))}</div>
+                    </>
+                  )}
+                  {REQUIERE_CONFIRMACION.includes(lMedio) && <p className="jc-hint">Esta forma de pago quedará "por confirmar" hasta validación.</p>}
+                  <div className="jc-row">
+                    <button className="jc-btn sm" onClick={agregarLinea}>Agregar forma de pago</button>
+                  </div>
+                </>
+              )}
+
+              {msg && <p className={`jc-msg ${msg.tipo}`}>{msg.txt}</p>}
+
               <div className="jc-row">
-                <button className="jc-btn" onClick={() => { setDoc(null); setMedio(null); }}>Cancelar</button>
-                <button className="jc-btn primary" disabled={!medio || ocupado} onClick={confirmarCobro}>
+                <button className="jc-btn" onClick={() => { setDoc(null); setLineas([]); }}>Cancelar</button>
+                <button className="jc-btn primary" disabled={restante !== 0 || ocupado} onClick={registrarCobro}>
                   {ocupado ? 'Registrando…' : 'Registrar cobro'}
                 </button>
               </div>
@@ -256,29 +318,27 @@ export default function CobroCaja({ perfil }) {
 
         <div className="jc-panel">
           <h2>Documentos del día</h2>
-          {cobros.length === 0 ? (
+          {docsDia.length === 0 ? (
             <div className="jc-empty">Aún no hay cobros en este turno.</div>
           ) : (
-            <table className="jc-table">
-              <thead>
-                <tr><th>Hora</th><th>Folio</th><th>Cliente</th><th>Medio</th><th className="num">Monto</th></tr>
-              </thead>
-              <tbody>
-                {cobros.map((c) => (
-                  <tr key={c.id}>
-                    <td>{hora(c.creado_en)}</td>
-                    <td>{c.folio}</td>
-                    <td>{c.cliente || '—'}{c.descripcion && <span className="jc-sub">{c.descripcion}</span>}</td>
-                    <td>
-                      <span className="jc-tag">{medioLabel(c.medio_pago)}</span>
-                      {c.estado_pago === 'por_confirmar' && <span className="jc-st warn" style={{ marginLeft: 4 }}>por confirmar</span>}
-                      {c.estado_pago === 'rechazado' && <span className="jc-st bad" style={{ marginLeft: 4 }}>rechazado</span>}
-                    </td>
-                    <td className="num">{clp(c.monto)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            docsDia.map((d) => (
+              <div className="jc-docrow" key={`${d.tipo_dte}-${d.folio}`}>
+                <div className="jc-docrow-head">
+                  <div>
+                    <b>Folio {d.folio}</b> · {d.cliente || '—'}
+                    {d.descripcion && <span className="jc-sub">{d.descripcion}</span>}
+                  </div>
+                  <div className="num"><b>{clp(d.total)}</b></div>
+                </div>
+                <div className="jc-docrow-lines">
+                  {d.lineas.map((l) => (
+                    <span key={l.id} className="jc-tag">
+                      {medioLabel(l.medio_pago)} · {clp(l.monto)}{l.estado_pago === 'por_confirmar' && ' (por confirmar)'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))
           )}
         </div>
       </div>

@@ -107,4 +107,15 @@ export const CSS = `
 .jc-modal h3 { margin:0 0 8px; font-size:16px; }
 .jc-modal p { margin:0; font-size:14px; color:var(--muted); line-height:1.4; }
 .jc-editrow { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; align-items:end; }
+
+.jc-lineas { display:flex; flex-direction:column; gap:6px; margin:10px 0; }
+.jc-linea { display:flex; justify-content:space-between; align-items:center; background:var(--azul-050); border-radius:8px; padding:8px 10px; font-size:14px; font-weight:600; }
+.jc-x { border:none; background:transparent; color:var(--muted); cursor:pointer; font-size:14px; padding:2px 8px; line-height:1; }
+.jc-x:hover { color:var(--danger); }
+.jc-restante { font-size:15px; font-weight:700; margin:8px 0; }
+.jc-restante.ok { color:var(--ok); }
+.jc-docrow { padding:10px 0; border-bottom:1px solid #F0F2F7; }
+.jc-docrow:last-child { border-bottom:none; }
+.jc-docrow-head { display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
+.jc-docrow-lines { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
 `;
