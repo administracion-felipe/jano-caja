@@ -49,7 +49,7 @@ export default function EditarDocumento({ grupo, onClose, onSaved }) {
         const { error } = await supabase.from('cobros').delete().in('id', aEliminar);
         if (error) throw error;
       }
-      for (const l of lineas.filter((l) => l.id && !l._del)) {
+      for (const l of lineas.filter((l) => l.id && !l._del && l.medio !== 'saldo_favor')) {
         const { error } = await supabase.from('cobros').update({
           medio_pago: l.medio, monto: Number(l.monto) || 0,
           estado_pago: REQ.includes(l.medio) ? 'por_confirmar' : 'confirmado',
@@ -85,7 +85,9 @@ export default function EditarDocumento({ grupo, onClose, onSaved }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '10px 0' }}>
           {lineas.map((l, i) => (
             <div key={i} style={{ ...rowStyle, opacity: l._del ? 0.5 : 1 }}>
-              {l._del ? (
+              {l.medio === 'saldo_favor' ? (
+                <span style={{ flex: 1 }}>Saldo a favor · {clp(l.monto)} <span style={{ color: 'var(--muted)', fontSize: 12 }}>(no editable aquí)</span></span>
+              ) : l._del ? (
                 <>
                   <span style={{ flex: 1, textDecoration: 'line-through' }}>{medioLabel(l.medio)} · {clp(l.monto)}</span>
                   <button className="jc-btn sm" onClick={() => toggleDel(i)}>Deshacer</button>

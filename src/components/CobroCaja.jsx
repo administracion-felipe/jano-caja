@@ -16,6 +16,7 @@ const MEDIOS = [
   { id: 'transferencia', label: 'Transferencia' },
   { id: 'webpay', label: 'Webpay' },
   { id: 'credito_cta_cte', label: 'Crédito' },
+  { id: 'saldo_favor', label: 'Saldo a favor' },
 ];
 const medioLabel = (id) => MEDIOS.find((m) => m.id === id)?.label ?? id;
 const REQUIERE_CONFIRMACION = ['transferencia', 'webpay'];
@@ -37,6 +38,8 @@ export default function CobroCaja({ perfil }) {
   const [lMedio, setLMedio] = useState('efectivo');
   const [lMonto, setLMonto] = useState('');
   const [lRecibido, setLRecibido] = useState('');
+  const [saldos, setSaldos] = useState([]);
+  const [lSaldoId, setLSaldoId] = useState('');
   const [msg, setMsg] = useState(null);
   const [ocupado, setOcupado] = useState(false);
 
@@ -75,10 +78,17 @@ export default function CobroCaja({ perfil }) {
       const { data: rs } = await supabase.from('retiros').select('*')
         .eq('sesion_id', data.id).order('creado_en', { ascending: false });
       setRetiros(rs || []);
+      await cargarSaldos();
     } else {
       await sugerirFondo();
     }
     setCargando(false);
+  }
+
+  async function cargarSaldos() {
+    const { data } = await supabase.from('saldos_favor').select('*')
+      .eq('estado', 'disponible').gt('saldo', 0).order('creado_en', { ascending: false });
+    setSaldos(data || []);
   }
 
   async function sugerirFondo() {
@@ -106,7 +116,7 @@ export default function CobroCaja({ perfil }) {
     if (!scan.trim()) return;
     try {
       const d = parseTimbre(scan);
-      setDoc(d); setLineas([]); setLMedio('efectivo'); setLMonto(String(d.total)); setLRecibido(''); setScan(''); setMsg(null);
+      setDoc(d); setLineas([]); setLMedio('efectivo'); setLMonto(String(d.total)); setLRecibido(''); setLSaldoId(''); setScan(''); setMsg(null);
     } catch (e) { setMsg({ tipo: 'error', txt: e.message }); setScan(''); }
   }
 
@@ -117,12 +127,20 @@ export default function CobroCaja({ perfil }) {
     const m = Number(lMonto) || 0;
     if (m <= 0) return setMsg({ tipo: 'error', txt: 'Ingresa un monto válido.' });
     if (m > restante) return setMsg({ tipo: 'error', txt: `El monto supera lo que falta (${clp(restante)}).` });
+    let saldoId = null, clienteSaldo = null;
+    if (lMedio === 'saldo_favor') {
+      const s = saldos.find((x) => String(x.id) === String(lSaldoId));
+      if (!s) return setMsg({ tipo: 'error', txt: 'Elige el saldo a favor a usar.' });
+      const yaUsado = lineas.filter((l) => l.saldo_id === s.id).reduce((a, l) => a + l.monto, 0);
+      if (m > s.saldo - yaUsado) return setMsg({ tipo: 'error', txt: `El saldo disponible de ese cliente es ${clp(s.saldo - yaUsado)}.` });
+      saldoId = s.id; clienteSaldo = s.cliente_nombre || s.cliente_rut || 'Cliente';
+    }
     const vuelto = lMedio === 'efectivo' ? Math.max(0, (Number(lRecibido) || m) - m) : 0;
-    const nuevas = [...lineas, { id: 't' + Date.now(), medio: lMedio, monto: m, vuelto }];
+    const nuevas = [...lineas, { id: 't' + Date.now(), medio: lMedio, monto: m, vuelto, saldo_id: saldoId, cliente_saldo: clienteSaldo }];
     setLineas(nuevas);
     const nuevoRestante = doc.total - nuevas.reduce((s, l) => s + l.monto, 0);
     setLMonto(nuevoRestante > 0 ? String(nuevoRestante) : '');
-    setLRecibido(''); setMsg(null);
+    setLRecibido(''); setLSaldoId(''); setMsg(null);
   }
 
   function quitarLinea(id) {
@@ -143,15 +161,25 @@ export default function CobroCaja({ perfil }) {
     const filas = lineas.map((l) => ({
       sesion_id: sesion.id, tipo_dte: doc.tipoDte, folio: doc.folio,
       monto: l.monto, medio_pago: l.medio, vuelto: l.vuelto || 0, cajero: perfil.nombre,
+      saldo_id: l.saldo_id || null,
       estado_pago: REQUIERE_CONFIRMACION.includes(l.medio) ? 'por_confirmar' : 'confirmado',
     }));
     const { data, error } = await supabase.from('cobros').insert(filas).select();
+    if (error) { setOcupado(false); return setMsg({ tipo: 'error', txt: error.message }); }
+    const usoPorSaldo = {};
+    lineas.forEach((l) => { if (l.saldo_id) usoPorSaldo[l.saldo_id] = (usoPorSaldo[l.saldo_id] || 0) + l.monto; });
+    for (const sid of Object.keys(usoPorSaldo)) {
+      const s = saldos.find((x) => String(x.id) === String(sid));
+      if (!s) continue;
+      const nuevo = Math.max(0, s.saldo - usoPorSaldo[sid]);
+      await supabase.from('saldos_favor').update({ saldo: nuevo, estado: nuevo <= 0 ? 'agotado' : 'disponible' }).eq('id', sid);
+    }
     setOcupado(false);
-    if (error) return setMsg({ tipo: 'error', txt: error.message });
     const conMeta = (data || []).map((c) => ({ ...c, cliente: doc.razonReceptor, descripcion: doc.primerItem }));
     setCobros((prev) => [...conMeta, ...prev]);
     const hayPorConfirmar = filas.some((f) => f.estado_pago === 'por_confirmar');
     setDoc(null); setLineas([]);
+    if (Object.keys(usoPorSaldo).length) await cargarSaldos();
     setMsg({ tipo: 'ok', txt: `Documento ${doc.folio} cobrado en ${filas.length} forma(s) de pago${hayPorConfirmar ? ' · hay pagos por confirmar' : ''}.` });
   }
 
@@ -272,7 +300,7 @@ export default function CobroCaja({ perfil }) {
                 <div className="jc-lineas">
                   {lineas.map((l) => (
                     <div className="jc-linea" key={l.id}>
-                      <span>{medioLabel(l.medio)} · {clp(l.monto)}{l.vuelto ? ` · vuelto ${clp(l.vuelto)}` : ''}</span>
+                      <span>{medioLabel(l.medio)}{l.cliente_saldo ? ` (${l.cliente_saldo})` : ''} · {clp(l.monto)}{l.vuelto ? ` · vuelto ${clp(l.vuelto)}` : ''}</span>
                       <button className="jc-x" onClick={() => quitarLinea(l.id)}>✕</button>
                     </div>
                   ))}
@@ -290,6 +318,22 @@ export default function CobroCaja({ perfil }) {
                       <button key={m.id} className={`jc-medio${lMedio === m.id ? ' on' : ''}`} onClick={() => setLMedio(m.id)}>{m.label}</button>
                     ))}
                   </div>
+                  {lMedio === 'saldo_favor' && (
+                    <>
+                      <label className="jc-lbl">Saldo a favor del cliente</label>
+                      <select className="jc-select" value={lSaldoId} onChange={(e) => {
+                        setLSaldoId(e.target.value);
+                        const s = saldos.find((x) => String(x.id) === e.target.value);
+                        if (s) setLMonto(String(Math.min(restante, s.saldo)));
+                      }}>
+                        <option value="">Elegir cliente…</option>
+                        {saldos.map((s) => (
+                          <option key={s.id} value={s.id}>{(s.cliente_nombre || s.cliente_rut || 'Cliente')} · {clp(s.saldo)}</option>
+                        ))}
+                      </select>
+                      {saldos.length === 0 && <p className="jc-hint">No hay saldos a favor disponibles. Regístralos en la pestaña Saldos.</p>}
+                    </>
+                  )}
                   <label className="jc-lbl">Monto de esta forma de pago</label>
                   <input className="jc-input" type="number" value={lMonto} onChange={(e) => setLMonto(e.target.value)} />
                   {lMedio === 'efectivo' && (
@@ -332,7 +376,7 @@ export default function CobroCaja({ perfil }) {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <b className="num">{clp(d.total)}</b>
-                    {perfil.puede_autorizar && <button className="jc-btn sm" onClick={() => setEditandoDoc(d)}>Editar</button>}
+                    <button className="jc-btn sm" onClick={() => setEditandoDoc(d)}>Editar</button>
                   </div>
                 </div>
                 <div className="jc-docrow-lines">

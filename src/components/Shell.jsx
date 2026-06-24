@@ -5,12 +5,14 @@ import logo from '../lib/logo';
 import CobroCaja from './CobroCaja';
 import Conciliacion from './Conciliacion';
 import Pagos from './Pagos';
+import SaldosFavor from './SaldosFavor';
 import Autorizaciones from './Autorizaciones';
 
 const TABS = [
   { id: 'caja', label: 'Caja' },
   { id: 'conc', label: 'Conciliación' },
   { id: 'pagos', label: 'Pagos' },
+  { id: 'saldos', label: 'Saldos' },
   { id: 'autoriz', label: 'Autorizaciones' },
 ];
 
@@ -39,6 +41,7 @@ export default function Shell({ perfil, onSalir }) {
         {tab === 'caja' && <CobroCaja perfil={perfil} />}
         {tab === 'conc' && <Conciliacion />}
         {tab === 'pagos' && <Pagos perfil={perfil} />}
+        {tab === 'saldos' && <SaldosFavor perfil={perfil} />}
         {tab === 'autoriz' && <Autorizaciones perfil={perfil} />}
       </div>
     </div>
