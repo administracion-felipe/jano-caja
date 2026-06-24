@@ -5,6 +5,7 @@ import { CSS } from '../lib/styles';
 import logo from '../lib/logo';
 import CobroCaja from './CobroCaja';
 import Conciliacion from './Conciliacion';
+import Cuadre from './Cuadre';
 import Historial from './Historial';
 import Pagos from './Pagos';
 import SaldosFavor from './SaldosFavor';
@@ -19,6 +20,7 @@ const ICON = {
   saldos: 'M3 7a2 2 0 012-2h12l2 3v9a2 2 0 01-2 2H5a2 2 0 01-2-2z M16 12h3',
   autoriz: 'M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z M9 12l2 2 4-4',
   config: 'M4 21v-6 M4 11V3 M12 21v-8 M12 9V3 M20 21v-4 M20 13V3 M1 15h6 M9 9h6 M17 17h6',
+  cuadre: 'M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2h-4 M9 3v18 M3 9h18 M3 15h18',
 };
 function Ico({ name }) {
   return (
@@ -31,6 +33,7 @@ function Ico({ name }) {
 const TABS = [
   { id: 'caja', label: 'Caja', titulo: 'Caja Operativa' },
   { id: 'conc', label: 'Conciliación', titulo: 'Conciliación' },
+  { id: 'cuadre', label: 'Cuadre', titulo: 'Cuadre con el sistema' },
   { id: 'historial', label: 'Historial', titulo: 'Historial de cajas' },
   { id: 'pagos', label: 'Pagos', titulo: 'Pagos' },
   { id: 'saldos', label: 'Saldos', titulo: 'Saldos a favor' },
@@ -88,6 +91,7 @@ export default function Shell({ perfil, onSalir }) {
           <div className="jc-content">
             {tab === 'caja' && <CobroCaja perfil={perfil} />}
             {tab === 'conc' && <Conciliacion />}
+            {tab === 'cuadre' && <Cuadre />}
             {tab === 'historial' && <Historial perfil={perfil} />}
             {tab === 'pagos' && <Pagos perfil={perfil} />}
             {tab === 'saldos' && <SaldosFavor perfil={perfil} />}

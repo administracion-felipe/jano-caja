@@ -306,6 +306,12 @@ export const CSS = `
 .jc-ptable tfoot td { position:sticky; bottom:0; background:#EEF2F7; font-weight:700; border-top:2px solid var(--border); }
 .jc-ptable tfoot td.total { background:#FDE9D2; }
 .jc-ptable .jc-medio-dot { margin-right:5px; vertical-align:middle; }
+.jc-fileups { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin:10px 0 14px; }
+.jc-fileup { display:flex; align-items:center; gap:10px; padding:14px; border:1.5px dashed #CBD7E6; border-radius:12px; background:#FBFCFE; cursor:pointer; font-size:14px; font-weight:600; color:var(--text); transition:border-color .15s, background .15s; }
+.jc-fileup:hover { border-color:var(--azul); background:var(--azul-050); }
+.jc-fileup.ok { border-style:solid; border-color:#BBF7D0; background:#F0FDF4; color:#15803D; }
+.jc-fileup .ic { width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:var(--azul-050); color:var(--azul); font-weight:800; flex:0 0 auto; }
+.jc-fileup.ok .ic { background:#DCFCE7; color:#15803D; }
 .jc-tag { background:#F1F5F9; color:#334155; border-radius:8px; padding:4px 9px; font-size:12px; font-weight:500; }
 .jc-badge { background:var(--azul-050); color:var(--azul); }
 .jc-scan { border:2px dashed #CBD7E6; border-radius:18px; background:#FBFCFE; padding:30px 20px; text-align:center; transition:border-color .2s, background .2s; }
