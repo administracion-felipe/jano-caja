@@ -49,6 +49,21 @@ function diasHabilesMes(d = new Date()) {
   return n;
 }
 
+// Mar-vie 9:00–17:30. Si no hay hora (solo fecha), solo se evalúa el día.
+function esFueraHorario(emitidoEn, fechaEmision) {
+  const iso = emitidoEn || (fechaEmision ? fechaEmision + 'T12:00:00' : null);
+  if (!iso) return false;
+  const dt = new Date(iso);
+  if (isNaN(dt.getTime())) return false;
+  const wd = dt.getDay();
+  if (wd === 0 || wd === 6) return true;
+  if (emitidoEn) {
+    const min = dt.getHours() * 60 + dt.getMinutes();
+    if (min < 540 || min > 1050) return true;
+  }
+  return false;
+}
+
 export default function CobroCaja({ perfil }) {
   const [sesion, setSesion] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -101,12 +116,12 @@ export default function CobroCaja({ perfil }) {
     if (data) {
       const { data: cs } = await supabase.from('cobros').select('*')
         .eq('sesion_id', data.id).order('creado_en', { ascending: false });
-      const { data: docs } = await supabase.from('documentos').select('tipo_dte,folio,razon_receptor,primer_item');
+      const { data: docs } = await supabase.from('documentos').select('tipo_dte,folio,razon_receptor,primer_item,fuera_horario,emitido_en');
       const map = {};
       (docs || []).forEach((d) => { map[`${d.tipo_dte}-${d.folio}`] = d; });
       setCobros((cs || []).map((c) => {
         const d = map[`${c.tipo_dte}-${c.folio}`] || {};
-        return { ...c, cliente: d.razon_receptor || null, descripcion: d.primer_item || null };
+        return { ...c, cliente: d.razon_receptor || null, descripcion: d.primer_item || null, fuera_horario: d.fuera_horario || false, emitido_en: d.emitido_en || null };
       }));
       const { data: rs } = await supabase.from('retiros').select('*')
         .eq('sesion_id', data.id).order('creado_en', { ascending: false });
@@ -224,10 +239,12 @@ export default function CobroCaja({ perfil }) {
   async function registrarCobro() {
     if (!doc || lineas.length === 0 || restante !== 0) return;
     setOcupado(true);
+    const fuera = esFueraHorario(doc.emitidoEn, doc.fechaEmision);
     await supabase.from('documentos').upsert({
       tipo_dte: doc.tipoDte, folio: doc.folio, total: doc.total,
       rut_receptor: doc.rutReceptor, razon_receptor: doc.razonReceptor,
-      fecha_emision: doc.fechaEmision, primer_item: doc.primerItem, canal: 'mostrador',
+      fecha_emision: doc.fechaEmision, emitido_en: doc.emitidoEn || null, fuera_horario: fuera,
+      primer_item: doc.primerItem, canal: 'mostrador',
       forma_pago: lineas.length > 1 ? 'mixto' : lineas[0].medio, estado_sii: 'pendiente', origen: 'timbre',
     }, { onConflict: 'tipo_dte,folio' });
     const filas = lineas.map((l) => ({
@@ -247,7 +264,7 @@ export default function CobroCaja({ perfil }) {
       await supabase.from('saldos_favor').update({ saldo: nuevo, estado: nuevo <= 0 ? 'agotado' : 'disponible' }).eq('id', sid);
     }
     setOcupado(false);
-    const conMeta = (data || []).map((c) => ({ ...c, cliente: doc.razonReceptor, descripcion: doc.primerItem }));
+    const conMeta = (data || []).map((c) => ({ ...c, cliente: doc.razonReceptor, descripcion: doc.primerItem, fuera_horario: fuera, emitido_en: doc.emitidoEn || null }));
     setCobros((prev) => [...conMeta, ...prev]);
     const hayPorConfirmar = filas.some((f) => f.estado_pago === 'por_confirmar');
     setDoc(null); setLineas([]);
@@ -286,7 +303,7 @@ export default function CobroCaja({ perfil }) {
   const grupos = {};
   cobros.forEach((c) => {
     const k = `${c.tipo_dte}-${c.folio}`;
-    if (!grupos[k]) grupos[k] = { tipo_dte: c.tipo_dte, folio: c.folio, cliente: c.cliente, descripcion: c.descripcion, lineas: [], total: 0 };
+    if (!grupos[k]) grupos[k] = { tipo_dte: c.tipo_dte, folio: c.folio, cliente: c.cliente, descripcion: c.descripcion, fuera_horario: c.fuera_horario, emitido_en: c.emitido_en, lineas: [], total: 0 };
     grupos[k].lineas.push(c);
     grupos[k].total += c.monto;
   });
@@ -564,6 +581,7 @@ export default function CobroCaja({ perfil }) {
                 <div className="jc-docrow-head">
                   <div>
                     <b>Folio {d.folio}</b> · {d.cliente || '—'}
+                    {d.fuera_horario && <span className="jc-st warn" style={{ marginLeft: 6 }}>Fuera de horario</span>}
                     {d.descripcion && <span className="jc-sub">{d.descripcion}</span>}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

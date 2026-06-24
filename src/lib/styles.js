@@ -155,4 +155,21 @@ export const CSS = `
 .jc-legend .it b { margin-left:auto; }
 .jc-legend .dot { width:10px; height:10px; border-radius:50%; flex:0 0 auto; }
 .jc-legend .empty { font-size:13px; color:var(--muted); }
+
+/* Pase moderno */
+.jc-card, .jc-panel { border-radius:16px; border-color:#EDF0F6; box-shadow:0 1px 2px rgba(16,24,40,.04), 0 6px 16px rgba(16,24,40,.045); }
+.jc-card { transition:box-shadow .2s ease, transform .2s ease; }
+.jc-card:hover { box-shadow:0 8px 22px rgba(16,24,40,.10); transform:translateY(-2px); }
+.jc-bar { border-radius:16px; border-color:#EDF0F6; box-shadow:0 2px 12px rgba(16,24,40,.05); }
+.jc-btn { transition:background .15s, border-color .15s, box-shadow .15s, transform .05s; }
+.jc-btn:active { transform:translateY(1px); }
+.jc-btn.primary { box-shadow:0 2px 8px rgba(8,64,208,.22); }
+.jc-tab { transition:background .15s, color .15s; }
+.jc-tab:hover { background:#F1F4FB; color:var(--text); }
+.jc-ic { box-shadow:inset 0 0 0 1px rgba(0,0,0,.03); }
+.jc-input, .jc-select { transition:border-color .15s, box-shadow .15s; }
+.jc-st { font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; }
+.jc-st.ok { color:#0F7A53; background:#E6F4EC; }
+.jc-st.warn { color:#A65A00; background:#FBF0DF; }
+.jc-st.bad { color:#B3261E; background:#FBEAE9; }
 `;

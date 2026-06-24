@@ -21,9 +21,17 @@ const hoyStr = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local
 export default function Historial() {
   const [fecha, setFecha] = useState(hoyStr());
   const [sesiones, setSesiones] = useState([]);
+  const [fuera, setFuera] = useState([]);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => { cargar(); }, [fecha]);
+  useEffect(() => { cargarFuera(); }, []);
+
+  async function cargarFuera() {
+    const { data } = await supabase.from('documentos').select('tipo_dte,folio,razon_receptor,total,emitido_en,fecha_emision')
+      .eq('fuera_horario', true).order('emitido_en', { ascending: false }).limit(50);
+    setFuera(data || []);
+  }
 
   async function cargar() {
     setCargando(true);
@@ -104,6 +112,28 @@ export default function Historial() {
           </div>
         ))
       )}
+
+      <div className="jc-panel" style={{ marginTop: 16 }}>
+        <h2>Documentos fuera de horario</h2>
+        <p className="jc-hint" style={{ marginTop: 0 }}>Emitidos fuera de lun–vie 9:00–17:30. Se listan por su fecha real de emisión para que no se pierdan del registro.</p>
+        {fuera.length === 0 ? (
+          <div className="jc-empty">No hay documentos fuera de horario.</div>
+        ) : (
+          <table className="jc-table">
+            <thead><tr><th>Emitido</th><th>Folio</th><th>Cliente</th><th className="num">Monto</th></tr></thead>
+            <tbody>
+              {fuera.map((d) => (
+                <tr key={`${d.tipo_dte}-${d.folio}`}>
+                  <td>{d.emitido_en ? new Date(d.emitido_en).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : (d.fecha_emision || '—')}</td>
+                  <td>{d.folio}</td>
+                  <td>{d.razon_receptor || '—'}</td>
+                  <td className="num">{clp(d.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </>
   );
 }

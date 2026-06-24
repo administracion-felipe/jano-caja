@@ -24,6 +24,7 @@ export default function Autorizaciones({ perfil }) {
   const [eNota, setENota] = useState('');
   const [eMonto, setEMonto] = useState('');
   const [confirmar, setConfirmar] = useState(null);
+  const [confirmarDel, setConfirmarDel] = useState(null);
 
   const [nuevoTipo, setNuevoTipo] = useState('');
   const [busyTipo, setBusyTipo] = useState(false);
@@ -116,6 +117,14 @@ export default function Autorizaciones({ perfil }) {
     await cargar();
   }
 
+  async function eliminarRetiro(r) {
+    setBusy('r' + r.id); setError(null);
+    const { error } = await supabase.from('retiros').delete().eq('id', r.id);
+    setBusy(null); setConfirmarDel(null);
+    if (error) return setError(error.message);
+    setRetiros((prev) => prev.filter((x) => x.id !== r.id));
+  }
+
   if (cargando) return <p className="jc-cajero">Cargando…</p>;
 
   const pendientes = retiros.filter((r) => r.estado === 'pendiente');
@@ -199,6 +208,7 @@ export default function Autorizaciones({ perfil }) {
                       {(r.descripcion || r.nota) && <div className="jc-hint" style={{ marginTop: 6 }}>{r.descripcion || ''}{r.nota ? ` · ${r.nota}` : ''}</div>}
                       <div className="jc-acts" style={{ marginTop: 8 }}>
                         <button className="jc-btn sm" onClick={() => abrirEdicion(r)}>Editar</button>
+                        <button className="jc-btn sm danger" onClick={() => setConfirmarDel(r)}>Eliminar</button>
                         {puedeAutorizar && r.estado === 'pendiente' && <button className="jc-btn sm danger" disabled={busy === 'r' + r.id} onClick={() => resolver(r, 'rechazado')}>Rechazar</button>}
                         {puedeAutorizar && r.estado === 'pendiente' && <button className="jc-btn sm ok" disabled={busy === 'r' + r.id} onClick={() => resolver(r, 'autorizado')}>Autorizar</button>}
                       </div>
@@ -228,6 +238,16 @@ export default function Autorizaciones({ perfil }) {
           busy={!!busy}
           onCancel={() => setConfirmar(null)}
           onConfirm={confirmar.accion}
+        />
+      )}
+
+      {confirmarDel && (
+        <Confirm
+          titulo="Eliminar retiro"
+          mensaje={`¿Eliminar el retiro de ${clp(confirmarDel.monto)} (${confirmarDel.motivo || '—'})? Esta acción no se puede deshacer.`}
+          busy={busy === 'r' + confirmarDel.id}
+          onCancel={() => setConfirmarDel(null)}
+          onConfirm={() => eliminarRetiro(confirmarDel)}
         />
       )}
     </>

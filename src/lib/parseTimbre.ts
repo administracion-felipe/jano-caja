@@ -19,6 +19,7 @@ export type DocumentoEscaneado = {
   rutReceptor: string | null;   // null en boletas a consumidor final
   razonReceptor: string | null;
   fechaEmision: string | null;  // YYYY-MM-DD (formato nativo del TED)
+  emitidoEn: string | null;     // TSTED: fecha-hora de timbrado (YYYY-MM-DDThh:mm:ss)
   total: number;
   primerItem: string | null;
 };
@@ -60,6 +61,7 @@ export function parseTimbre(raw: string): DocumentoEscaneado {
     rutReceptor: get('RR'),
     razonReceptor: get('RSR'),
     fechaEmision: get('FE'),
+    emitidoEn: get('TSTED'),
     total: Number(get('MNT') ?? 0),
     primerItem: get('IT1'),
   };
