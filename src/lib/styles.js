@@ -242,6 +242,7 @@ export const CSS = `
 .jc-doclist { max-height:560px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-right:4px; }
 .jc-doclist::-webkit-scrollbar { width:8px; }
 .jc-doclist::-webkit-scrollbar-thumb { background:#CBD5E1; border-radius:8px; }
+.jc-dot { width:11px; height:11px; border-radius:50%; flex:0 0 auto; display:inline-block; }
 .jc-tag { background:#F1F5F9; color:#334155; border-radius:8px; padding:4px 9px; font-size:12px; font-weight:500; }
 .jc-badge { background:var(--azul-050); color:var(--azul); }
 .jc-scan { border:2px dashed #CBD7E6; border-radius:18px; background:#FBFCFE; padding:30px 20px; text-align:center; transition:border-color .2s, background .2s; }

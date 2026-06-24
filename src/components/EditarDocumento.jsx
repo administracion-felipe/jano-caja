@@ -1,20 +1,11 @@
 // src/components/EditarDocumento.jsx
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { MEDIOS, medioLabel, REQUIERE_CONFIRMACION as REQ } from '../lib/medios';
 import Confirm from './Confirm';
 
 const clp = (n) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n || 0);
-
-const MEDIOS = [
-  { id: 'efectivo', label: 'Efectivo' },
-  { id: 'tarjeta', label: 'Tarjeta' },
-  { id: 'transferencia', label: 'Transferencia' },
-  { id: 'webpay', label: 'Webpay' },
-  { id: 'credito_cta_cte', label: 'Crédito' },
-];
-const medioLabel = (id) => MEDIOS.find((m) => m.id === id)?.label ?? id;
-const REQ = ['transferencia', 'webpay'];
 
 export default function EditarDocumento({ grupo, onClose, onSaved }) {
   const [lineas, setLineas] = useState(grupo.lineas.map((l) => ({ id: l.id, medio: l.medio_pago, monto: l.monto, _del: false })));
@@ -112,7 +103,7 @@ export default function EditarDocumento({ grupo, onClose, onSaved }) {
               ) : (
                 <>
                   <select className="jc-select" style={{ maxWidth: 150 }} value={l.medio} onChange={(e) => setLinea(i, 'medio', e.target.value)}>
-                    {MEDIOS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                    {MEDIOS.filter((m) => m.id !== 'saldo_favor').map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
                   </select>
                   <input className="jc-input" style={{ maxWidth: 120 }} type="number" value={l.monto} onChange={(e) => setLinea(i, 'monto', e.target.value)} />
                   <button className="jc-x" title="Eliminar" onClick={() => toggleDel(i)}>✕</button>
@@ -125,7 +116,7 @@ export default function EditarDocumento({ grupo, onClose, onSaved }) {
         <label className="jc-lbl">Agregar forma de pago</label>
         <div style={{ display: 'flex', gap: 8 }}>
           <select className="jc-select" style={{ maxWidth: 150 }} value={aMedio} onChange={(e) => setAMedio(e.target.value)}>
-            {MEDIOS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            {MEDIOS.filter((m) => m.id !== 'saldo_favor').map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
           </select>
           <input className="jc-input" type="number" value={aMonto} onChange={(e) => setAMonto(e.target.value)} placeholder="Monto" />
           <button className="jc-btn sm" onClick={agregar}>Agregar</button>

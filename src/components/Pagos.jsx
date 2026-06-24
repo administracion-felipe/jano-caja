@@ -20,6 +20,9 @@ export default function Pagos({ perfil }) {
   const [cargando, setCargando] = useState(true);
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
+  const [revisorUrl, setRevisorUrl] = useState('');
+  const [revisando, setRevisando] = useState(false);
+  const [avisoRev, setAvisoRev] = useState(null);
 
   useEffect(() => { cargar(); }, []);
 
@@ -27,7 +30,21 @@ export default function Pagos({ perfil }) {
     setCargando(true);
     const { data: c } = await supabase.from('cobros').select('*').eq('estado_pago', 'por_confirmar').order('creado_en', { ascending: true });
     const { data: t } = await supabase.from('transferencias_recibidas').select('*').eq('estado', 'disponible').order('fecha', { ascending: false });
+    const { data: cfg } = await supabase.from('configuracion').select('valor').eq('clave', 'apps_script_url').maybeSingle();
+    setRevisorUrl(cfg?.valor || '');
     setCobros(c || []); setTransfs(t || []); setCargando(false);
+  }
+
+  async function revisarCorreo() {
+    if (!revisorUrl) {
+      setAvisoRev({ tipo: 'error', txt: 'Falta configurar la URL del revisor de correo en Configuración.' });
+      return;
+    }
+    setAvisoRev(null); setRevisando(true);
+    // Se abre el endpoint del Apps Script en otra pestaña (evita problemas de permisos del navegador).
+    window.open(revisorUrl, '_blank');
+    // Tras unos segundos, recargamos para traer lo que el script haya guardado.
+    setTimeout(async () => { await cargar(); setRevisando(false); setAvisoRev({ tipo: 'ok', txt: 'Lista actualizada con lo encontrado en el correo.' }); }, 6000);
   }
 
   async function resolverCobro(cobro, estado, transf) {
@@ -54,6 +71,17 @@ export default function Pagos({ perfil }) {
         <div className="jc-card hero"><div className="lbl">Pagos por confirmar</div><div className="val">{cobros.length}</div></div>
         <div className="jc-card"><div className="lbl">Transferencias sin asignar</div><div className="val">{transfs.length}</div></div>
       </div>
+
+      <div className="jc-substrip" style={{ marginBottom: 12 }}>
+        <h2 style={{ fontSize: 15 }}>Conciliación de pagos</h2>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="jc-btn sm" onClick={cargar}>Actualizar</button>
+          <button className="jc-btn sm primary" disabled={revisando} onClick={revisarCorreo}>
+            {revisando ? 'Revisando correo…' : 'Revisar correo ahora'}
+          </button>
+        </div>
+      </div>
+      {avisoRev && <p className={`jc-msg ${avisoRev.tipo}`} style={{ marginTop: 0 }}>{avisoRev.txt}</p>}
 
       {error && <p className="jc-msg error" style={{ marginTop: 0 }}>{error}</p>}
       {!puede && <p className="jc-hint" style={{ marginTop: 0, marginBottom: 12 }}>Puedes ver los pagos y las transferencias. Confirmar o rechazar un pago es solo para autorizadores.</p>}

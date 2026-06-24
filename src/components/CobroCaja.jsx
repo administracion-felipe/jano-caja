@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { parseTimbre } from '../lib/parseTimbre';
+import { MEDIOS, medioLabel, REQUIERE_CONFIRMACION } from '../lib/medios';
 import EditarDocumento from './EditarDocumento';
 
 const clp = (n) =>
@@ -9,17 +10,6 @@ const clp = (n) =>
 
 const hora = (ts) =>
   ts ? new Date(ts).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : '';
-
-const MEDIOS = [
-  { id: 'efectivo', label: 'Efectivo' },
-  { id: 'tarjeta', label: 'Tarjeta' },
-  { id: 'transferencia', label: 'Transferencia' },
-  { id: 'webpay', label: 'Webpay' },
-  { id: 'credito_cta_cte', label: 'Crédito' },
-  { id: 'saldo_favor', label: 'Saldo a favor' },
-];
-const medioLabel = (id) => MEDIOS.find((m) => m.id === id)?.label ?? id;
-const REQUIERE_CONFIRMACION = ['transferencia', 'webpay'];
 
 const EST_RET = { pendiente: { t: 'Pendiente', c: 'warn' }, autorizado: { t: 'Autorizado', c: 'ok' }, rechazado: { t: 'Rechazado', c: 'bad' } };
 
@@ -367,14 +357,9 @@ export default function CobroCaja({ perfil }) {
   const diaPct = metaDiaria > 0 ? Math.min(100, (totalDia / metaDiaria) * 100) : 0;
   const mesPct = metaMensual > 0 ? Math.min(100, (mtdTotal / metaMensual) * 100) : 0;
   const faltaDia = Math.max(0, metaDiaria - totalDia);
-  const segs = [
-    { label: 'Efectivo', val: tot.efectivo, color: '#0F9D58' },
-    { label: 'Tarjeta', val: tot.tarjeta, color: '#E0A106' },
-    { label: 'Transferencia', val: tot.transferencia, color: '#2563EB' },
-    { label: 'Webpay', val: tot.webpay, color: '#DB2777' },
-    { label: 'Crédito', val: tot.credito_cta_cte, color: '#64748B' },
-    { label: 'Saldo a favor', val: tot.saldo_favor, color: '#8B5CF6' },
-  ].filter((s) => s.val > 0);
+  const segs = MEDIOS
+    .map((m) => ({ label: m.label, val: tot[m.id] || 0, color: m.color }))
+    .filter((s) => s.val > 0);
   let acc = 0;
   const donutBg = totalDia > 0
     ? `conic-gradient(${segs.map((s) => { const a = (acc / totalDia) * 360; acc += s.val; const b = (acc / totalDia) * 360; return `${s.color} ${a}deg ${b}deg`; }).join(', ')})`
@@ -384,7 +369,7 @@ export default function CobroCaja({ perfil }) {
     const arq = Number(arqueo) || 0;
     const { error } = await supabase.from('caja_sesiones').update({
       cerrada_en: new Date().toISOString(),
-      total_efectivo: tot.efectivo || 0, total_tarjeta: tot.tarjeta || 0, total_transferencia: tot.transferencia || 0,
+      total_efectivo: tot.efectivo || 0, total_tarjeta: (tot.debito || 0) + (tot.credito || 0) + (tot.tarjeta || 0), total_transferencia: tot.transferencia || 0,
       arqueo_efectivo: arq, diferencia: arq - efectivoEsperado, estado: 'cerrada',
     }).eq('id', sesion.id);
     if (error) return setMsg({ tipo: 'error', txt: error.message });
@@ -697,31 +682,13 @@ export default function CobroCaja({ perfil }) {
           <div className="val">{docsDia.length}</div>
           <div className="sub">Boletas {boletas} · Facturas {facturas}</div>
         </div>
-        <div className="jc-card">
-          <div className="jc-card-top"><Ic name="cash" bg="#E6F4EC" fg="#0F9D58" /><span className="lbl">Efectivo</span></div>
-          <div className="val">{clp(tot.efectivo)}</div>
-          <div className="sub">{pctDe(tot.efectivo)}% del total</div>
-        </div>
-        <div className="jc-card">
-          <div className="jc-card-top"><Ic name="card" bg="#FCF3DA" fg="#B7791F" /><span className="lbl">Tarjeta</span></div>
-          <div className="val">{clp(tot.tarjeta)}</div>
-          <div className="sub">{pctDe(tot.tarjeta)}% del total</div>
-        </div>
-        <div className="jc-card">
-          <div className="jc-card-top"><Ic name="bank" bg="#E3F0FF" fg="#2563EB" /><span className="lbl">Transferencia</span></div>
-          <div className="val">{clp(tot.transferencia)}</div>
-          <div className="sub">{pctDe(tot.transferencia)}% del total</div>
-        </div>
-        <div className="jc-card">
-          <div className="jc-card-top"><Ic name="web" bg="#FCE7F0" fg="#DB2777" /><span className="lbl">Webpay</span></div>
-          <div className="val">{clp(tot.webpay)}</div>
-          <div className="sub">{pctDe(tot.webpay)}% del total</div>
-        </div>
-        <div className="jc-card">
-          <div className="jc-card-top"><Ic name="credit" bg="#EEF1F6" fg="#64748B" /><span className="lbl">Crédito</span></div>
-          <div className="val">{clp(tot.credito_cta_cte)}</div>
-          <div className="sub">{pctDe(tot.credito_cta_cte)}% del total</div>
-        </div>
+        {MEDIOS.filter((m) => (tot[m.id] || 0) !== 0).map((m) => (
+          <div className="jc-card" key={m.id}>
+            <div className="jc-card-top"><span className="jc-dot" style={{ background: m.color }} /><span className="lbl">{m.label}</span></div>
+            <div className="val">{clp(tot[m.id])}</div>
+            <div className="sub">{pctDe(tot[m.id])}% del total</div>
+          </div>
+        ))}
         <div className="jc-card">
           <div className="jc-card-top"><Ic name="retiro" bg="#FCF3DA" fg="#B7791F" /><span className="lbl">Retiros aut.</span></div>
           <div className="val">{clp(retirosAutorizados)}</div>

@@ -17,6 +17,7 @@ export default function Configuracion({ perfil }) {
   const [metaInput, setMetaInput] = useState('');
   const [diasInput, setDiasInput] = useState('');
   const [fondoInput, setFondoInput] = useState('');
+  const [urlInput, setUrlInput] = useState('');
   const [cargando, setCargando] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -26,12 +27,13 @@ export default function Configuracion({ perfil }) {
   useEffect(() => { cargar(); }, []);
 
   async function cargar() {
-    const { data } = await supabase.from('configuracion').select('clave,valor').in('clave', ['meta_mensual', 'dias_habiles', 'fondo_base']);
+    const { data } = await supabase.from('configuracion').select('clave,valor').in('clave', ['meta_mensual', 'dias_habiles', 'fondo_base', 'apps_script_url']);
     const map = {};
     (data || []).forEach((r) => { map[r.clave] = r.valor; });
     setMetaInput(map.meta_mensual || '0');
     setDiasInput(map.dias_habiles || String(diasHabilesMes()));
     setFondoInput(map.fondo_base || '800000');
+    setUrlInput(map.apps_script_url || '');
     setCargando(false);
   }
 
@@ -45,6 +47,7 @@ export default function Configuracion({ perfil }) {
       { clave: 'meta_mensual', valor: String(meta), actualizado_en: new Date().toISOString() },
       { clave: 'dias_habiles', valor: String(dias), actualizado_en: new Date().toISOString() },
       { clave: 'fondo_base', valor: String(fondo), actualizado_en: new Date().toISOString() },
+      { clave: 'apps_script_url', valor: urlInput.trim(), actualizado_en: new Date().toISOString() },
     ], { onConflict: 'clave' });
     setBusy(false);
     if (error) return setMsg({ tipo: 'error', txt: error.message });
@@ -77,6 +80,9 @@ export default function Configuracion({ perfil }) {
               <input className="jc-input" type="number" value={fondoInput} onChange={(e) => setFondoInput(e.target.value)} />
             </div>
           </div>
+          <label className="jc-lbl" style={{ marginTop: 12 }}>URL del revisor de correo (Apps Script)</label>
+          <input className="jc-input" value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec?token=…" />
+          <p className="jc-hint" style={{ marginTop: 4 }}>Se usa en Pagos, en el botón "Revisar correo ahora".</p>
           <div className="jc-row">
             <button className="jc-btn primary" disabled={busy} onClick={guardar}>{busy ? 'Guardando…' : 'Guardar configuración'}</button>
           </div>

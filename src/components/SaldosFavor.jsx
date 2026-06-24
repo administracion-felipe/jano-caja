@@ -1,18 +1,12 @@
 // src/components/SaldosFavor.jsx
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { MEDIOS as MEDIOS_ALL, medioLabel } from '../lib/medios';
 
 const clp = (n) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n || 0);
 
-const MEDIOS = [
-  { id: 'efectivo', label: 'Efectivo' },
-  { id: 'tarjeta', label: 'Tarjeta' },
-  { id: 'transferencia', label: 'Transferencia' },
-  { id: 'webpay', label: 'Webpay' },
-  { id: 'credito_cta_cte', label: 'Crédito' },
-];
-const medioLabel = (id) => MEDIOS.find((m) => m.id === id)?.label ?? (id || '—');
+const MEDIOS = MEDIOS_ALL.filter((m) => m.id !== 'saldo_favor');
 
 export default function SaldosFavor({ perfil }) {
   const [saldos, setSaldos] = useState([]);

@@ -1,20 +1,12 @@
 // src/components/Historial.jsx
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { MEDIOS } from '../lib/medios';
 
 const clp = (n) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n || 0);
 const hora = (ts) =>
   ts ? new Date(ts).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : '';
-
-const MEDIOS = [
-  { id: 'efectivo', label: 'Efectivo' },
-  { id: 'tarjeta', label: 'Tarjeta' },
-  { id: 'transferencia', label: 'Transferencia' },
-  { id: 'webpay', label: 'Webpay' },
-  { id: 'credito_cta_cte', label: 'Crédito' },
-  { id: 'saldo_favor', label: 'Saldo a favor' },
-];
 
 const hoyStr = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local
 
@@ -120,12 +112,9 @@ export default function Historial({ perfil }) {
             <div className="jc-cards">
               <div className="jc-card hero"><div className="lbl">Total</div><div className="val">{clp(s.totalDia)}</div></div>
               <div className="jc-card"><div className="lbl">Documentos</div><div className="val">{s.nDocs}</div></div>
-              <div className="jc-card"><div className="lbl">Efectivo</div><div className="val">{clp(s.tot.efectivo)}</div></div>
-              <div className="jc-card"><div className="lbl">Tarjeta</div><div className="val">{clp(s.tot.tarjeta)}</div></div>
-              <div className="jc-card"><div className="lbl">Transferencia</div><div className="val">{clp(s.tot.transferencia)}</div></div>
-              <div className="jc-card"><div className="lbl">Webpay</div><div className="val">{clp(s.tot.webpay)}</div></div>
-              <div className="jc-card"><div className="lbl">Crédito</div><div className="val">{clp(s.tot.credito_cta_cte)}</div></div>
-              <div className="jc-card"><div className="lbl">Saldo a favor</div><div className="val">{clp(s.tot.saldo_favor)}</div></div>
+              {MEDIOS.filter((m) => (s.tot[m.id] || 0) !== 0).map((m) => (
+                <div className="jc-card" key={m.id}><div className="lbl">{m.label}</div><div className="val">{clp(s.tot[m.id])}</div></div>
+              ))}
               <div className="jc-card"><div className="lbl">Retiros aut.</div><div className="val">{clp(s.retAut)}</div></div>
             </div>
             {s.estado === 'cerrada' && (
