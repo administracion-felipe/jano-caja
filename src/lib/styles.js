@@ -101,4 +101,10 @@ export const CSS = `
 .jc-cand .info b { font-weight:600; }
 .jc-cand .info span { color:var(--muted); }
 .jc-nomatch { font-size:12px; color:#A65A00; background:#FBF0DF; border-radius:8px; padding:8px 10px; margin:10px 0; }
+
+.jc-modal-bg { position:fixed; inset:0; background:rgba(11,18,32,.45); display:flex; align-items:center; justify-content:center; padding:16px; z-index:50; }
+.jc-modal { background:var(--surface); border-radius:14px; padding:20px; max-width:380px; width:100%; box-shadow:0 20px 50px rgba(0,0,0,.2); }
+.jc-modal h3 { margin:0 0 8px; font-size:16px; }
+.jc-modal p { margin:0; font-size:14px; color:var(--muted); line-height:1.4; }
+.jc-editrow { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; align-items:end; }
 `;

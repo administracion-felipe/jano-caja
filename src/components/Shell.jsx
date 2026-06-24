@@ -7,12 +7,15 @@ import Conciliacion from './Conciliacion';
 import Pagos from './Pagos';
 import Autorizaciones from './Autorizaciones';
 
+const TABS = [
+  { id: 'caja', label: 'Caja' },
+  { id: 'conc', label: 'Conciliación' },
+  { id: 'pagos', label: 'Pagos' },
+  { id: 'autoriz', label: 'Autorizaciones' },
+];
+
 export default function Shell({ perfil, onSalir }) {
-  const tabs = [];
-  if (perfil.puede_operar_caja) { tabs.push({ id: 'caja', label: 'Caja' }); tabs.push({ id: 'conc', label: 'Conciliación' }); }
-  if (perfil.puede_operar_caja || perfil.puede_autorizar) tabs.push({ id: 'pagos', label: 'Pagos' });
-  if (perfil.puede_autorizar) tabs.push({ id: 'autoriz', label: 'Autorizaciones' });
-  const [tab, setTab] = useState(tabs[0]?.id);
+  const [tab, setTab] = useState('caja');
 
   return (
     <div className="jc">
@@ -24,7 +27,7 @@ export default function Shell({ perfil, onSalir }) {
             <div className="t"><b>JANO Repuestos</b><span>Caja</span></div>
           </div>
           <div className="jc-tabs">
-            {tabs.map((t) => (
+            {TABS.map((t) => (
               <button key={t.id} className={`jc-tab${tab === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>
             ))}
           </div>
