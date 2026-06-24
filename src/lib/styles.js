@@ -233,6 +233,15 @@ export const CSS = `
 .jc-alert.danger { color:#991B1B; background:#FEF2F2; border-color:#FECACA; }
 .jc-alert.warn { color:#92400E; background:#FFFBEB; border-color:#FDE68A; }
 .jc-hint.warn { color:#B45309; font-weight:600; }
+.jc-daytot { font-size:13.5px; color:var(--muted); font-weight:500; white-space:nowrap; }
+.jc-daytot b { color:var(--text); font-weight:800; letter-spacing:-.01em; }
+.jc-sumstrip { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:6px; }
+.jc-sumpill { display:inline-flex; flex-direction:column; gap:1px; background:#F1F5F9; border:1px solid var(--border); border-radius:10px; padding:6px 11px; min-width:96px; }
+.jc-sumpill i { font-style:normal; font-size:11px; color:var(--muted); font-weight:600; }
+.jc-sumpill b { font-size:14px; font-weight:800; letter-spacing:-.01em; color:var(--text); }
+.jc-doclist { max-height:560px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-right:4px; }
+.jc-doclist::-webkit-scrollbar { width:8px; }
+.jc-doclist::-webkit-scrollbar-thumb { background:#CBD5E1; border-radius:8px; }
 .jc-tag { background:#F1F5F9; color:#334155; border-radius:8px; padding:4px 9px; font-size:12px; font-weight:500; }
 .jc-badge { background:var(--azul-050); color:var(--azul); }
 .jc-scan { border:2px dashed #CBD7E6; border-radius:18px; background:#FBFCFE; padding:30px 20px; text-align:center; transition:border-color .2s, background .2s; }

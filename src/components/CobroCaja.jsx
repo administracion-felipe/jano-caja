@@ -94,6 +94,8 @@ export default function CobroCaja({ perfil }) {
   const [metaMensual, setMetaMensual] = useState(0);
   const [diasHabCfg, setDiasHabCfg] = useState(0);
   const [fondoBase, setFondoBase] = useState(800000);
+  const [verResumen, setVerResumen] = useState(false);
+  const [filtroDoc, setFiltroDoc] = useState('');
   const [mtdTotal, setMtdTotal] = useState(0);
   const [editandoMeta, setEditandoMeta] = useState(false);
   const [metaInput, setMetaInput] = useState('');
@@ -413,7 +415,10 @@ export default function CobroCaja({ perfil }) {
     <>
       <div className="jc-substrip">
         <span className="jc-badge">Caja abierta · {perfil.nombre}</span>
-        <button className="jc-btn" onClick={() => setCerrando(true)}>Cerrar caja</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <span className="jc-daytot">Total del día <b>{clp(totalDia)}</b> · {docsDia.length} doc.</span>
+          <button className="jc-btn" onClick={() => setCerrando(true)}>Cerrar caja</button>
+        </div>
       </div>
 
       {efectivoEsperado < 0 && (
@@ -422,111 +427,6 @@ export default function CobroCaja({ perfil }) {
       {(sesion?.fondo_inicial || 0) < fondoBase && (
         <div className="jc-alert warn">La caja abrió con {clp(sesion?.fondo_inicial || 0)}, bajo el fondo base de {clp(fondoBase)} (faltan {clp(fondoBase - (sesion?.fondo_inicial || 0))}).</div>
       )}
-
-      <div className="jc-cards">
-        <div className="jc-card">
-          <div className="jc-card-top">
-            <Ic name="money" bg="#EAF0FE" fg="#0840D0" /><span className="lbl">Total del día</span>
-            {trend != null && <span className={`jc-trend ${trend >= 0 ? 'up' : 'down'}`}>{trend >= 0 ? '↗' : '↘'} {Math.abs(trend)}%</span>}
-          </div>
-          <div className="val">{clp(totalDia)}</div>
-          <div className="sub">{ayerTotal > 0 ? `vs ayer ${clp(ayerTotal)}` : 'sin datos de ayer'}</div>
-        </div>
-        <div className="jc-card">
-          <div className="jc-card-top"><Ic name="doc" bg="#EEF1F6" fg="#475569" /><span className="lbl">Documentos</span></div>
-          <div className="val">{docsDia.length}</div>
-          <div className="sub">Boletas {boletas} · Facturas {facturas}</div>
-        </div>
-        <div className="jc-card">
-          <div className="jc-card-top"><Ic name="cash" bg="#E6F4EC" fg="#0F9D58" /><span className="lbl">Efectivo</span></div>
-          <div className="val">{clp(tot.efectivo)}</div>
-          <div className="sub">{pctDe(tot.efectivo)}% del total</div>
-        </div>
-        <div className="jc-card">
-          <div className="jc-card-top"><Ic name="card" bg="#FCF3DA" fg="#B7791F" /><span className="lbl">Tarjeta</span></div>
-          <div className="val">{clp(tot.tarjeta)}</div>
-          <div className="sub">{pctDe(tot.tarjeta)}% del total</div>
-        </div>
-        <div className="jc-card">
-          <div className="jc-card-top"><Ic name="bank" bg="#E3F0FF" fg="#2563EB" /><span className="lbl">Transferencia</span></div>
-          <div className="val">{clp(tot.transferencia)}</div>
-          <div className="sub">{pctDe(tot.transferencia)}% del total</div>
-        </div>
-        <div className="jc-card">
-          <div className="jc-card-top"><Ic name="web" bg="#FCE7F0" fg="#DB2777" /><span className="lbl">Webpay</span></div>
-          <div className="val">{clp(tot.webpay)}</div>
-          <div className="sub">{pctDe(tot.webpay)}% del total</div>
-        </div>
-        <div className="jc-card">
-          <div className="jc-card-top"><Ic name="credit" bg="#EEF1F6" fg="#64748B" /><span className="lbl">Crédito</span></div>
-          <div className="val">{clp(tot.credito_cta_cte)}</div>
-          <div className="sub">{pctDe(tot.credito_cta_cte)}% del total</div>
-        </div>
-        <div className="jc-card">
-          <div className="jc-card-top"><Ic name="retiro" bg="#FCF3DA" fg="#B7791F" /><span className="lbl">Retiros aut.</span></div>
-          <div className="val">{clp(retirosAutorizados)}</div>
-          <div className="sub">Hoy</div>
-        </div>
-      </div>
-
-      <div className="jc-two">
-        <div className="jc-panel">
-          <div className="jc-substrip" style={{ marginBottom: 12 }}>
-            <h2>Metas</h2>
-            {perfil.puede_autorizar && !editandoMeta && <button className="jc-btn sm" onClick={() => { setMetaInput(String(metaMensual)); setEditandoMeta(true); }}>Ajustar meta mensual</button>}
-          </div>
-          {editandoMeta ? (
-            <div>
-              <label className="jc-lbl">Meta mensual de ventas</label>
-              <input className="jc-input" type="number" value={metaInput} onChange={(e) => setMetaInput(e.target.value)} />
-              <p className="jc-hint">Se divide por los {diasHab} días hábiles del mes para la meta diaria.</p>
-              <div className="jc-row">
-                <button className="jc-btn" onClick={() => setEditandoMeta(false)}>Cancelar</button>
-                <button className="jc-btn primary" onClick={guardarMeta}>Guardar meta</button>
-              </div>
-            </div>
-          ) : (
-            <div className="jc-metas">
-              <div className="jc-metabox">
-                <div className="jc-ring sm" style={{ background: `conic-gradient(var(--azul) ${diaPct * 3.6}deg, #E6ECF5 0deg)` }}>
-                  <div className="hole">{Math.round(diaPct)}%</div>
-                </div>
-                <div className="lbl">Meta diaria</div>
-                <div className="big">{clp(totalDia)}</div>
-                <div className="sub">de {clp(metaDiaria)}</div>
-                <div className="sub">{metaDiaria <= 0 ? 'Define la meta mensual' : faltaDia > 0 ? `Faltan ${clp(faltaDia)}` : 'Lograda hoy'}</div>
-              </div>
-              <div className="jc-metabox">
-                <div className="jc-ring sm" style={{ background: `conic-gradient(#0F9D58 ${mesPct * 3.6}deg, #E6ECF5 0deg)` }}>
-                  <div className="hole">{Math.round(mesPct)}%</div>
-                </div>
-                <div className="lbl">Meta mensual</div>
-                <div className="big">{clp(mtdTotal)}</div>
-                <div className="sub">de {clp(metaMensual)}</div>
-                <div className="sub">{diasHab} días hábiles</div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="jc-panel">
-          <h2>Distribución de ventas</h2>
-          <div className="jc-dist">
-            <div className="jc-donut" style={{ background: donutBg }}><div className="hole" /></div>
-            <div className="jc-legend">
-              {segs.length === 0 ? (
-                <span className="empty">Aún no hay ventas registradas hoy.</span>
-              ) : (
-                segs.map((s) => (
-                  <div className="it" key={s.label}>
-                    <span className="dot" style={{ background: s.color }} />{s.label}<b>{pctDe(s.val)}%</b>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
 
       {cerrando && (
         <div className="jc-panel" style={{ marginBottom: 16 }}>
@@ -669,32 +569,56 @@ export default function CobroCaja({ perfil }) {
         </div>
 
         <div className="jc-panel">
-          <h2>Documentos del día</h2>
+          <div className="jc-substrip" style={{ marginBottom: 10 }}>
+            <h2>Documentos del día</h2>
+            <span className="jc-daytot">{docsDia.length} doc. · {clp(totalDia)}</span>
+          </div>
+
+          <div className="jc-sumstrip">
+            {MEDIOS.filter((m) => (tot[m.id] || 0) !== 0).map((m) => (
+              <span key={m.id} className="jc-sumpill"><i>{medioLabel(m.id)}</i><b>{clp(tot[m.id])}</b></span>
+            ))}
+            {(tot.efectivo || 0) === 0 && totalDia === 0 && <span className="jc-sub">Sin cobros aún</span>}
+          </div>
+
+          {docsDia.length > 0 && (
+            <input className="jc-input" style={{ margin: '4px 0 12px' }} value={filtroDoc}
+              onChange={(e) => setFiltroDoc(e.target.value)} placeholder="Filtrar por folio o cliente…" />
+          )}
+
           {docsDia.length === 0 ? (
             <div className="jc-empty">Aún no hay cobros en este turno.</div>
           ) : (
-            docsDia.map((d) => (
-              <div className="jc-docrow" key={`${d.tipo_dte}-${d.folio}`}>
-                <div className="jc-docrow-head">
-                  <div>
-                    <b>Folio {d.folio}</b> · {d.cliente || '—'}
-                    {d.fuera_horario && <span className="jc-st warn" style={{ marginLeft: 6 }}>Fuera de horario</span>}
-                    {d.descripcion && <span className="jc-sub">{d.descripcion}</span>}
+            <div className="jc-doclist">
+              {docsDia
+                .filter((d) => {
+                  const q = filtroDoc.trim().toLowerCase();
+                  if (!q) return true;
+                  return String(d.folio).includes(q) || (d.cliente || '').toLowerCase().includes(q);
+                })
+                .map((d) => (
+                  <div className="jc-docrow" key={`${d.tipo_dte}-${d.folio}`}>
+                    <div className="jc-docrow-head">
+                      <div>
+                        <b>Folio {d.folio}</b> · {d.cliente || '—'}
+                        {d.fuera_horario && <span className="jc-st warn" style={{ marginLeft: 6 }}>Fuera de horario</span>}
+                        {d.descripcion && <span className="jc-sub">{d.descripcion}</span>}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <b className="num">{clp(d.total)}</b>
+                        <button className="jc-btn sm" onClick={() => setEditandoDoc(d)}>Editar</button>
+                      </div>
+                    </div>
+                    <div className="jc-docrow-lines">
+                      {d.lineas.map((l) => (
+                        <span key={l.id} className="jc-tag">
+                          {medioLabel(l.medio_pago)} · {clp(l.monto)}{l.saldo_id ? ' (saldo a favor)' : ''}{l.estado_pago === 'por_confirmar' && ' (por confirmar)'}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <b className="num">{clp(d.total)}</b>
-                    <button className="jc-btn sm" onClick={() => setEditandoDoc(d)}>Editar</button>
-                  </div>
-                </div>
-                <div className="jc-docrow-lines">
-                  {d.lineas.map((l) => (
-                    <span key={l.id} className="jc-tag">
-                      {medioLabel(l.medio_pago)} · {clp(l.monto)}{l.saldo_id ? ' (saldo a favor)' : ''}{l.estado_pago === 'por_confirmar' && ' (por confirmar)'}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))
+                ))}
+            </div>
           )}
         </div>
       </div>
@@ -752,6 +676,119 @@ export default function CobroCaja({ perfil }) {
         )}
         {retirosPendientes > 0 && <p className="jc-hint">{retirosPendientes} solicitud(es) esperando autorización.</p>}
       </div>
+
+      <div className="jc-substrip" style={{ marginTop: 16 }}>
+        <h2>Resumen del día</h2>
+        <button className="jc-btn sm" onClick={() => setVerResumen((v) => !v)}>{verResumen ? 'Ocultar ▲' : 'Ver resumen ▼'}</button>
+      </div>
+      {verResumen && (
+        <>
+      <div className="jc-cards">
+        <div className="jc-card">
+          <div className="jc-card-top">
+            <Ic name="money" bg="#EAF0FE" fg="#0840D0" /><span className="lbl">Total del día</span>
+            {trend != null && <span className={`jc-trend ${trend >= 0 ? 'up' : 'down'}`}>{trend >= 0 ? '↗' : '↘'} {Math.abs(trend)}%</span>}
+          </div>
+          <div className="val">{clp(totalDia)}</div>
+          <div className="sub">{ayerTotal > 0 ? `vs ayer ${clp(ayerTotal)}` : 'sin datos de ayer'}</div>
+        </div>
+        <div className="jc-card">
+          <div className="jc-card-top"><Ic name="doc" bg="#EEF1F6" fg="#475569" /><span className="lbl">Documentos</span></div>
+          <div className="val">{docsDia.length}</div>
+          <div className="sub">Boletas {boletas} · Facturas {facturas}</div>
+        </div>
+        <div className="jc-card">
+          <div className="jc-card-top"><Ic name="cash" bg="#E6F4EC" fg="#0F9D58" /><span className="lbl">Efectivo</span></div>
+          <div className="val">{clp(tot.efectivo)}</div>
+          <div className="sub">{pctDe(tot.efectivo)}% del total</div>
+        </div>
+        <div className="jc-card">
+          <div className="jc-card-top"><Ic name="card" bg="#FCF3DA" fg="#B7791F" /><span className="lbl">Tarjeta</span></div>
+          <div className="val">{clp(tot.tarjeta)}</div>
+          <div className="sub">{pctDe(tot.tarjeta)}% del total</div>
+        </div>
+        <div className="jc-card">
+          <div className="jc-card-top"><Ic name="bank" bg="#E3F0FF" fg="#2563EB" /><span className="lbl">Transferencia</span></div>
+          <div className="val">{clp(tot.transferencia)}</div>
+          <div className="sub">{pctDe(tot.transferencia)}% del total</div>
+        </div>
+        <div className="jc-card">
+          <div className="jc-card-top"><Ic name="web" bg="#FCE7F0" fg="#DB2777" /><span className="lbl">Webpay</span></div>
+          <div className="val">{clp(tot.webpay)}</div>
+          <div className="sub">{pctDe(tot.webpay)}% del total</div>
+        </div>
+        <div className="jc-card">
+          <div className="jc-card-top"><Ic name="credit" bg="#EEF1F6" fg="#64748B" /><span className="lbl">Crédito</span></div>
+          <div className="val">{clp(tot.credito_cta_cte)}</div>
+          <div className="sub">{pctDe(tot.credito_cta_cte)}% del total</div>
+        </div>
+        <div className="jc-card">
+          <div className="jc-card-top"><Ic name="retiro" bg="#FCF3DA" fg="#B7791F" /><span className="lbl">Retiros aut.</span></div>
+          <div className="val">{clp(retirosAutorizados)}</div>
+          <div className="sub">Hoy</div>
+        </div>
+      </div>
+
+      <div className="jc-two">
+        <div className="jc-panel">
+          <div className="jc-substrip" style={{ marginBottom: 12 }}>
+            <h2>Metas</h2>
+            {perfil.puede_autorizar && !editandoMeta && <button className="jc-btn sm" onClick={() => { setMetaInput(String(metaMensual)); setEditandoMeta(true); }}>Ajustar meta mensual</button>}
+          </div>
+          {editandoMeta ? (
+            <div>
+              <label className="jc-lbl">Meta mensual de ventas</label>
+              <input className="jc-input" type="number" value={metaInput} onChange={(e) => setMetaInput(e.target.value)} />
+              <p className="jc-hint">Se divide por los {diasHab} días hábiles del mes para la meta diaria.</p>
+              <div className="jc-row">
+                <button className="jc-btn" onClick={() => setEditandoMeta(false)}>Cancelar</button>
+                <button className="jc-btn primary" onClick={guardarMeta}>Guardar meta</button>
+              </div>
+            </div>
+          ) : (
+            <div className="jc-metas">
+              <div className="jc-metabox">
+                <div className="jc-ring sm" style={{ background: `conic-gradient(var(--azul) ${diaPct * 3.6}deg, #E6ECF5 0deg)` }}>
+                  <div className="hole">{Math.round(diaPct)}%</div>
+                </div>
+                <div className="lbl">Meta diaria</div>
+                <div className="big">{clp(totalDia)}</div>
+                <div className="sub">de {clp(metaDiaria)}</div>
+                <div className="sub">{metaDiaria <= 0 ? 'Define la meta mensual' : faltaDia > 0 ? `Faltan ${clp(faltaDia)}` : 'Lograda hoy'}</div>
+              </div>
+              <div className="jc-metabox">
+                <div className="jc-ring sm" style={{ background: `conic-gradient(#0F9D58 ${mesPct * 3.6}deg, #E6ECF5 0deg)` }}>
+                  <div className="hole">{Math.round(mesPct)}%</div>
+                </div>
+                <div className="lbl">Meta mensual</div>
+                <div className="big">{clp(mtdTotal)}</div>
+                <div className="sub">de {clp(metaMensual)}</div>
+                <div className="sub">{diasHab} días hábiles</div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="jc-panel">
+          <h2>Distribución de ventas</h2>
+          <div className="jc-dist">
+            <div className="jc-donut" style={{ background: donutBg }}><div className="hole" /></div>
+            <div className="jc-legend">
+              {segs.length === 0 ? (
+                <span className="empty">Aún no hay ventas registradas hoy.</span>
+              ) : (
+                segs.map((s) => (
+                  <div className="it" key={s.label}>
+                    <span className="dot" style={{ background: s.color }} />{s.label}<b>{pctDe(s.val)}%</b>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+        </>
+      )}
 
       {editandoDoc && (
         <EditarDocumento
