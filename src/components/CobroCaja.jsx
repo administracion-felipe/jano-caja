@@ -88,7 +88,7 @@ export default function CobroCaja({ perfil }) {
   const [diasHabCfg, setDiasHabCfg] = useState(0);
   const [fondoBase, setFondoBase] = useState(800000);
   const [verResumen, setVerResumen] = useState(false);
-  const [vista, setVista] = useState('cobro');
+  const [vista, setVista] = useState('planilla');
   const [filtroDoc, setFiltroDoc] = useState('');
   const [mtdTotal, setMtdTotal] = useState(0);
   const [editandoMeta, setEditandoMeta] = useState(false);
@@ -434,11 +434,6 @@ export default function CobroCaja({ perfil }) {
         <div className="jc-alert warn">La caja abrió con {clp(sesion?.fondo_inicial || 0)}, bajo el fondo base de {clp(fondoBase)} (faltan {clp(fondoBase - (sesion?.fondo_inicial || 0))}).</div>
       )}
 
-      <div className="jc-viewtabs">
-        <button className={`jc-viewtab${vista === 'cobro' ? ' on' : ''}`} onClick={() => setVista('cobro')}>Cobro</button>
-        <button className={`jc-viewtab${vista === 'planilla' ? ' on' : ''}`} onClick={() => setVista('planilla')}>Planilla</button>
-      </div>
-
       {cerrando && (
         <div className="jc-panel" style={{ marginBottom: 16 }}>
           <h2>Cierre de caja</h2>
@@ -464,9 +459,8 @@ export default function CobroCaja({ perfil }) {
         </div>
       )}
 
-      {vista === 'cobro' && (<>
-      <div className="jc-grid">
-        <div className="jc-panel">
+      {/* Nuevo cobro (escáner + composición) — siempre visible, sirve en cualquier vista */}
+      <div className="jc-panel" style={{ marginBottom: 16 }}>
           <h2>Nuevo cobro</h2>
           {!doc ? (
             <>
@@ -595,6 +589,17 @@ export default function CobroCaja({ perfil }) {
           )}
         </div>
 
+      <div className="jc-viewtabs">
+        <button className={`jc-viewtab${vista === 'planilla' ? ' on' : ''}`} onClick={() => setVista('planilla')}>Planilla</button>
+        <button className={`jc-viewtab${vista === 'cobro' ? ' on' : ''}`} onClick={() => setVista('cobro')}>Documentos</button>
+        <button className={`jc-viewtab${vista === 'resumen' ? ' on' : ''}`} onClick={() => setVista('resumen')}>Resumen</button>
+      </div>
+
+      {vista === 'planilla' && (
+        <PlanillaCaja cobros={cobros} retiros={retiros} sesion={sesion} fondoBase={fondoBase} onEditar={setEditandoDoc} />
+      )}
+
+      {vista === 'cobro' && (
         <div className="jc-panel">
           <div className="jc-substrip" style={{ marginBottom: 10 }}>
             <h2>Documentos del día</h2>
@@ -648,7 +653,7 @@ export default function CobroCaja({ perfil }) {
             </div>
           )}
         </div>
-      </div>
+      )}
 
       <div className="jc-panel" style={{ marginTop: 16 }}>
         <div className="jc-substrip">
@@ -704,11 +709,7 @@ export default function CobroCaja({ perfil }) {
         {retirosPendientes > 0 && <p className="jc-hint">{retirosPendientes} solicitud(es) esperando autorización.</p>}
       </div>
 
-      <div className="jc-substrip" style={{ marginTop: 16 }}>
-        <h2>Resumen del día</h2>
-        <button className="jc-btn sm" onClick={() => setVerResumen((v) => !v)}>{verResumen ? 'Ocultar ▲' : 'Ver resumen ▼'}</button>
-      </div>
-      {verResumen && (
+      {vista === 'resumen' && (
         <>
       <div className="jc-cards">
         <div className="jc-card">
@@ -797,12 +798,6 @@ export default function CobroCaja({ perfil }) {
         </div>
       </div>
         </>
-      )}
-      </>
-      )}
-
-      {vista === 'planilla' && (
-        <PlanillaCaja cobros={cobros} retiros={retiros} sesion={sesion} fondoBase={fondoBase} onEditar={setEditandoDoc} />
       )}
 
       {editandoDoc && (
