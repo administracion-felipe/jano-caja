@@ -1,7 +1,7 @@
 // src/components/CobroCaja.jsx
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { parseTimbre } from '../lib/parseTimbre';
+import { parseTimbre, clienteDisplay } from '../lib/parseTimbre';
 import { MEDIOS, medioLabel, REQUIERE_CONFIRMACION } from '../lib/medios';
 import { fmtMiles, soloDigitos } from '../lib/num';
 import EditarDocumento from './EditarDocumento';
@@ -511,7 +511,7 @@ export default function CobroCaja({ perfil }) {
           ) : (
             <div className="jc-doc">
               <div className="meta">{doc.tipoNombre} · folio {doc.folio}</div>
-              {doc.razonReceptor && <div className="cliente">{doc.razonReceptor}</div>}
+              <div className="cliente">{clienteDisplay(doc.razonReceptor, doc.rutReceptor)}</div>
               {doc.primerItem && <div className="meta">{doc.primerItem}</div>}
               <div className="monto">{clp(doc.total)}</div>
               {dupAviso && <div className="jc-alert danger">⚠ El documento {doc.folio} ya fue cobrado. No se puede ingresar dos veces.</div>}
@@ -627,7 +627,7 @@ export default function CobroCaja({ perfil }) {
                   <div className="jc-docrow" key={`${d.tipo_dte}-${d.folio}`}>
                     <div className="jc-docrow-head">
                       <div>
-                        <b>Folio {d.folio}</b> · {d.cliente || '—'}
+                        <b>Folio {d.folio}</b> · {clienteDisplay(d.cliente)}
                         {d.fuera_horario && <span className="jc-st warn" style={{ marginLeft: 6 }}>Fuera de horario</span>}
                         {d.descripcion && <span className="jc-sub">{d.descripcion}</span>}
                       </div>

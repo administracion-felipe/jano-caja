@@ -3,6 +3,7 @@
 // una columna por medio de pago, totales (sumatoria) y filtros para buscar descuadres.
 import { useMemo, useState } from 'react';
 import { MEDIOS, medioLabel } from '../lib/medios';
+import { clienteDisplay } from '../lib/parseTimbre';
 
 const clp = (n) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n || 0);
@@ -142,7 +143,7 @@ export default function PlanillaCaja({ cobros, retiros, sesion, fondoBase, onEdi
                       {g.fuera_horario && <span className="jc-st warn" style={{ marginLeft: 4 }}>Fuera hor.</span>}
                       {g.porConfirmar && <span className="jc-st warn" style={{ marginLeft: 4 }}>Por confirmar</span>}
                     </td>
-                    <td className="cli">{g.cliente || '—'}{g.descripcion && <span className="jc-sub">{g.descripcion}</span>}</td>
+                    <td className="cli">{clienteDisplay(g.cliente)}{g.descripcion && <span className="jc-sub">{g.descripcion}</span>}</td>
                     <td className="hora">{hora(g.creado_en)}</td>
                     {mediosActivos.map((m) => (
                       <td key={m.id} className="num">{g.medios[m.id] ? clp(g.medios[m.id]) : <span className="cero">·</span>}</td>

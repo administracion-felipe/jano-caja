@@ -38,6 +38,20 @@ export function nombreTipo(tipo: number): string {
   return NOMBRE_TIPO[tipo] ?? `Tipo ${tipo}`;
 }
 
+// RUT genérico que el SII usa en boletas a consumidor final.
+const RUT_CONSUMIDOR_FINAL = '66666666-6';
+
+// Etiqueta amable del cliente para mostrar en pantalla.
+// Las boletas a consumidor final traen la razón social como "DESCONOCIDO"
+// y/o el RUT genérico 66666666-6; en esos casos mostramos "Consumidor final"
+// en vez de "DESCONOCIDO". No altera los datos guardados del documento.
+export function clienteDisplay(razon?: string | null, rut?: string | null): string {
+  const r = (razon ?? '').trim();
+  if (r && r.toUpperCase() !== 'DESCONOCIDO') return r;
+  if (rut && rut.replace(/\./g, '') !== RUT_CONSUMIDOR_FINAL) return rut;
+  return 'Consumidor final';
+}
+
 export function parseTimbre(raw: string): DocumentoEscaneado {
   // 1. Aislar el bloque <DD> y eliminar el <CAF> (que repite RE/TD internamente).
   const dd = (raw.match(/<DD>([\s\S]*?)<\/DD>/)?.[1] ?? raw)
