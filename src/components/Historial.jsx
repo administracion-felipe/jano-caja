@@ -119,17 +119,25 @@ export default function Historial({ perfil }) {
             </div>
             {s.estado === 'cerrada' && (
               <>
-                <p className="jc-hint">Fondo {clp(s.fondo_inicial)} · Arqueo {clp(s.arqueo_efectivo)} · Diferencia {clp(s.diferencia)}</p>
-                {confirmId === s.id ? (
-                  <div className="jc-row" style={{ alignItems: 'center', gap: 10 }}>
-                    <span className="jc-hint" style={{ margin: 0 }}>¿Reabrir esta caja para editarla?</span>
-                    <button className="jc-btn sm primary" onClick={() => reabrir(s)}>Sí, reabrir</button>
-                    <button className="jc-btn sm" onClick={() => setConfirmId(null)}>Cancelar</button>
-                  </div>
+                <p className="jc-hint">
+                  Fondo {clp(s.fondo_inicial)} · Arqueo {clp(s.arqueo_efectivo)} · Diferencia {clp(s.diferencia)}
+                  {s.estado_cuadratura && <span className={`jc-st ${s.estado_cuadratura === 'cuadrada' ? 'ok' : 'warn'}`} style={{ marginLeft: 8 }}>{s.estado_cuadratura === 'cuadrada' ? 'Cuadrada' : s.estado_cuadratura === 'sobrante' ? 'Sobrante' : 'Faltante'}</span>}
+                </p>
+                {s.observacion && <p className="jc-hint">Observación: {s.observacion}</p>}
+                {perfil.puede_autorizar ? (
+                  confirmId === s.id ? (
+                    <div className="jc-row" style={{ alignItems: 'center', gap: 10 }}>
+                      <span className="jc-hint" style={{ margin: 0 }}>¿Reabrir esta caja para editarla?</span>
+                      <button className="jc-btn sm primary" onClick={() => reabrir(s)}>Sí, reabrir</button>
+                      <button className="jc-btn sm" onClick={() => setConfirmId(null)}>Cancelar</button>
+                    </div>
+                  ) : (
+                    <div className="jc-row">
+                      <button className="jc-btn sm" onClick={() => { setAviso(null); setConfirmId(s.id); }}>Reabrir caja</button>
+                    </div>
+                  )
                 ) : (
-                  <div className="jc-row">
-                    <button className="jc-btn sm" onClick={() => { setAviso(null); setConfirmId(s.id); }}>Reabrir caja</button>
-                  </div>
+                  <p className="jc-hint">Reabrir una caja cerrada es solo para autorizadores.</p>
                 )}
               </>
             )}

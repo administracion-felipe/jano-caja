@@ -18,6 +18,7 @@ export default function Configuracion({ perfil }) {
   const [metaInput, setMetaInput] = useState('');
   const [diasInput, setDiasInput] = useState('');
   const [fondoInput, setFondoInput] = useState('');
+  const [alertaInput, setAlertaInput] = useState('');
   const [urlInput, setUrlInput] = useState('');
   const [cargando, setCargando] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -28,12 +29,13 @@ export default function Configuracion({ perfil }) {
   useEffect(() => { cargar(); }, []);
 
   async function cargar() {
-    const { data } = await supabase.from('configuracion').select('clave,valor').in('clave', ['meta_mensual', 'dias_habiles', 'fondo_base', 'apps_script_url']);
+    const { data } = await supabase.from('configuracion').select('clave,valor').in('clave', ['meta_mensual', 'dias_habiles', 'fondo_base', 'alerta_efectivo', 'apps_script_url']);
     const map = {};
     (data || []).forEach((r) => { map[r.clave] = r.valor; });
     setMetaInput(map.meta_mensual || '0');
     setDiasInput(map.dias_habiles || String(diasHabilesMes()));
     setFondoInput(map.fondo_base || '800000');
+    setAlertaInput(map.alerta_efectivo || '2000000');
     setUrlInput(map.apps_script_url || '');
     setCargando(false);
   }
@@ -42,12 +44,14 @@ export default function Configuracion({ perfil }) {
     const meta = Number(metaInput) || 0;
     const dias = Number(diasInput) || 0;
     const fondo = Number(fondoInput) || 0;
+    const alerta = Number(alertaInput) || 0;
     if (dias <= 0) return setMsg({ tipo: 'error', txt: 'Los días hábiles deben ser mayores a 0.' });
     setBusy(true); setMsg(null);
     const { error } = await supabase.from('configuracion').upsert([
       { clave: 'meta_mensual', valor: String(meta), actualizado_en: new Date().toISOString() },
       { clave: 'dias_habiles', valor: String(dias), actualizado_en: new Date().toISOString() },
       { clave: 'fondo_base', valor: String(fondo), actualizado_en: new Date().toISOString() },
+      { clave: 'alerta_efectivo', valor: String(alerta), actualizado_en: new Date().toISOString() },
       { clave: 'apps_script_url', valor: urlInput.trim(), actualizado_en: new Date().toISOString() },
     ], { onConflict: 'clave' });
     setBusy(false);
@@ -81,6 +85,9 @@ export default function Configuracion({ perfil }) {
               <input className="jc-input" type="text" inputMode="numeric" value={fmtMiles(fondoInput)} onChange={(e) => setFondoInput(soloDigitos(e.target.value))} />
             </div>
           </div>
+          <label className="jc-lbl" style={{ marginTop: 12 }}>Aviso de efectivo alto (sugiere retiro)</label>
+          <input className="jc-input" type="text" inputMode="numeric" value={fmtMiles(alertaInput)} onChange={(e) => setAlertaInput(soloDigitos(e.target.value))} placeholder="2.000.000" />
+          <p className="jc-hint" style={{ marginTop: 4 }}>Cuando el efectivo del cajón supere este monto, la caja mostrará un aviso para depositar o trasladar a bóveda.</p>
           <label className="jc-lbl" style={{ marginTop: 12 }}>URL del revisor de correo (Apps Script)</label>
           <input className="jc-input" value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec?token=…" />
           <p className="jc-hint" style={{ marginTop: 4 }}>Se usa en Pagos, en el botón "Revisar correo ahora".</p>

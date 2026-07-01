@@ -87,6 +87,8 @@ export default function CobroCaja({ perfil }) {
   const [metaMensual, setMetaMensual] = useState(0);
   const [diasHabCfg, setDiasHabCfg] = useState(0);
   const [fondoBase, setFondoBase] = useState(800000);
+  const [alertaEfectivo, setAlertaEfectivo] = useState(2000000);
+  const [obsCierre, setObsCierre] = useState('');
   const [verResumen, setVerResumen] = useState(false);
   const [vista, setVista] = useState('planilla');
   const [filtroDoc, setFiltroDoc] = useState('');
@@ -148,12 +150,13 @@ export default function CobroCaja({ perfil }) {
       total = (cs || []).reduce((a, c) => a + c.monto, 0);
     }
     setAyerTotal(total);
-    const { data: cfg } = await supabase.from('configuracion').select('clave,valor').in('clave', ['meta_mensual', 'dias_habiles', 'fondo_base']);
+    const { data: cfg } = await supabase.from('configuracion').select('clave,valor').in('clave', ['meta_mensual', 'dias_habiles', 'fondo_base', 'alerta_efectivo']);
     const cmap = {};
     (cfg || []).forEach((r) => { cmap[r.clave] = r.valor; });
     setMetaMensual(Number(cmap.meta_mensual) || 0);
     setDiasHabCfg(Number(cmap.dias_habiles) || 0);
     setFondoBase(Number(cmap.fondo_base) || 800000);
+    setAlertaEfectivo(Number(cmap.alerta_efectivo) || 2000000);
     const now = new Date();
     const iniMes = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
     const { data: ms } = await supabase.from('caja_sesiones').select('id').gte('abierta_en', iniMes.toISOString());
@@ -201,6 +204,13 @@ export default function CobroCaja({ perfil }) {
   }
 
   async function abrirCaja() {
+    // No permitir dos cajas abiertas a la vez (por si otra cajera ya abrió en otro equipo).
+    const { data: abierta } = await supabase.from('caja_sesiones').select('id,cajero').eq('estado', 'abierta').limit(1).maybeSingle();
+    if (abierta) {
+      setMsg({ tipo: 'error', txt: `Ya hay una caja abierta (${abierta.cajero}). Debe cerrarse antes de abrir otra.` });
+      await cargarSesion();
+      return;
+    }
     const { data, error } = await supabase.from('caja_sesiones')
       .insert({ cajero: perfil.nombre, fondo_inicial: Number(fondo) || 0 }).select().single();
     if (error) return setMsg({ tipo: 'error', txt: error.message });
@@ -355,6 +365,7 @@ export default function CobroCaja({ perfil }) {
   const totalDia = cobros.reduce((s, c) => s + c.monto, 0);
   const retirosAutorizados = retiros.filter((r) => r.estado === 'autorizado').reduce((s, r) => s + r.monto, 0);
   const retirosPendientes = retiros.filter((r) => r.estado === 'pendiente').length;
+  const pendientesConfirmar = cobros.filter((c) => c.estado_pago === 'por_confirmar').length;
   // Efectivo que realmente entró al cajón: ventas en efectivo reales (excluye notas de crédito y saldos a favor usados)
   const efectivoCajon = cobros.filter((c) => c.medio_pago === 'efectivo' && c.monto > 0 && !c.saldo_id).reduce((s, c) => s + c.monto, 0);
   const efectivoEsperado = (sesion?.fondo_inicial || 0) + efectivoCajon - retirosAutorizados;
@@ -387,14 +398,26 @@ export default function CobroCaja({ perfil }) {
     : '#E6ECF5';
 
   async function cerrarCaja() {
+    if (arqueo === '') { setMsg({ tipo: 'error', txt: 'Debes ingresar el efectivo contado (arqueo) antes de cerrar la caja.' }); return; }
     const arq = Number(arqueo) || 0;
-    const { error } = await supabase.from('caja_sesiones').update({
+    const dif = arq - efectivoEsperado;
+    if (dif !== 0 && !obsCierre.trim()) {
+      setMsg({ tipo: 'error', txt: `Hay una diferencia de ${clp(dif)}. Escribe una observación para poder cerrar.` });
+      return;
+    }
+    const estadoCuad = dif === 0 ? 'cuadrada' : dif > 0 ? 'sobrante' : 'faltante';
+    const base = {
       cerrada_en: new Date().toISOString(),
       total_efectivo: tot.efectivo || 0, total_tarjeta: (tot.debito || 0) + (tot.credito || 0) + (tot.tarjeta || 0), total_transferencia: tot.transferencia || 0,
-      arqueo_efectivo: arq, diferencia: arq - efectivoEsperado, estado: 'cerrada',
-    }).eq('id', sesion.id);
+      arqueo_efectivo: arq, diferencia: dif, estado: 'cerrada',
+    };
+    // Intenta guardar observación y estado de cuadratura. Si esas columnas aún no existen en la BD, cierra igual (respaldo).
+    let { error } = await supabase.from('caja_sesiones').update({ ...base, observacion: obsCierre.trim() || null, estado_cuadratura: estadoCuad }).eq('id', sesion.id);
+    if (error && /observacion|estado_cuadratura|column|does not exist/i.test(error.message || '')) {
+      ({ error } = await supabase.from('caja_sesiones').update(base).eq('id', sesion.id));
+    }
     if (error) return setMsg({ tipo: 'error', txt: error.message });
-    setSesion(null); setCobros([]); setRetiros([]); setCerrando(false); setArqueo('');
+    setSesion(null); setCobros([]); setRetiros([]); setCerrando(false); setArqueo(''); setObsCierre('');
     await sugerirFondo();
   }
 
@@ -430,6 +453,9 @@ export default function CobroCaja({ perfil }) {
       {efectivoEsperado < 0 && (
         <div className="jc-alert danger">⚠ La caja quedó en contra: el efectivo esperado es {clp(efectivoEsperado)}. Revisa los retiros y los cobros en efectivo.</div>
       )}
+      {efectivoCajon >= alertaEfectivo && (
+        <div className="jc-alert warn">💰 Hay {clp(efectivoCajon)} en efectivo en el cajón (sobre el aviso de {clp(alertaEfectivo)}). Considera solicitar un retiro a bóveda o depósito.</div>
+      )}
       {(sesion?.fondo_inicial || 0) < fondoBase && (
         <div className="jc-alert warn">La caja abrió con {clp(sesion?.fondo_inicial || 0)}, bajo el fondo base de {clp(fondoBase)} (faltan {clp(fondoBase - (sesion?.fondo_inicial || 0))}).</div>
       )}
@@ -443,9 +469,19 @@ export default function CobroCaja({ perfil }) {
           {efectivoEsperado < 0 && (
             <div className="jc-alert danger">⚠ El efectivo esperado es negativo ({clp(efectivoEsperado)}): la caja está en contra. Revisa retiros y cobros antes de cerrar.</div>
           )}
+          {pendientesConfirmar > 0 && (
+            <div className="jc-alert warn">⚠ Hay {pendientesConfirmar} pago(s) por confirmar (transferencia/Webpay). Puedes cerrar igual, pero quedarán pendientes de validar en la pestaña Pagos.</div>
+          )}
           <label className="jc-lbl">Efectivo contado (arqueo)</label>
           <input className="jc-input" type="text" inputMode="numeric" value={fmtMiles(arqueo)} onChange={(e) => setArqueo(soloDigitos(e.target.value))} placeholder="0" />
+          {arqueo === '' && <p className="jc-hint warn">Cuenta el efectivo del cajón e ingrésalo. Es obligatorio para cerrar.</p>}
           {arqueo !== '' && <p className="jc-hint">Diferencia: {clp((Number(arqueo) || 0) - efectivoEsperado)}</p>}
+          {arqueo !== '' && (Number(arqueo) || 0) - efectivoEsperado !== 0 && (
+            <>
+              <label className="jc-lbl">Observación de la diferencia (obligatoria)</label>
+              <input className="jc-input" value={obsCierre} onChange={(e) => setObsCierre(e.target.value)} placeholder="Explica el sobrante o faltante…" />
+            </>
+          )}
           {arqueo !== '' && (
             <p className={`jc-hint ${(Number(arqueo) || 0) < fondoBase ? 'warn' : ''}`}>
               Se traspasa al día siguiente: <b>{clp(Number(arqueo) || 0)}</b>
@@ -454,7 +490,7 @@ export default function CobroCaja({ perfil }) {
           )}
           <div className="jc-row">
             <button className="jc-btn" onClick={() => setCerrando(false)}>Cancelar</button>
-            <button className="jc-btn primary" onClick={cerrarCaja}>Confirmar cierre</button>
+            <button className="jc-btn primary" disabled={arqueo === ''} onClick={cerrarCaja}>Confirmar cierre</button>
           </div>
         </div>
       )}
